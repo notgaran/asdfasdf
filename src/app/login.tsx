@@ -15,9 +15,9 @@ export default function Login() {
     setError("");
     let result;
     if (isSignUp) {
-      result = await supabase.auth.signUp({ email, password });
+      result = await supabase.auth.signUp({ email: email.trim(), password });
     } else {
-      result = await supabase.auth.signInWithPassword({ email, password });
+      result = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     }
     if (result.error) setError(result.error.message);
     setLoading(false);
