@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
 import Login from "./login";
+import type { Session } from '@supabase/supabase-js';
 
 interface Diary {
   id: string;
@@ -11,7 +12,7 @@ interface Diary {
 }
 
 export default function Home() {
-  const [session, setSession] = useState<any>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [emotion, setEmotion] = useState("");
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
@@ -56,7 +57,7 @@ export default function Home() {
     setLoading(true);
     setError("");
     const { error } = await supabase.from("diary").insert({
-      user_id: session.user.id,
+      user_id: session?.user.id,
       emotion,
       content,
     });
@@ -67,7 +68,7 @@ export default function Home() {
     const { data } = await supabase
       .from("diary")
       .select("id, emotion, content, created_at")
-      .eq("user_id", session.user.id)
+      .eq("user_id", session?.user.id)
       .order("created_at", { ascending: false });
     setDiaries(data || []);
     setLoading(false);
