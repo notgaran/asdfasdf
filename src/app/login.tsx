@@ -24,12 +24,12 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center bg-gray-900">
       <form
         onSubmit={handleAuth}
-        className="bg-white p-8 rounded shadow-md w-full max-w-sm"
+        className="bg-gray-800 p-8 rounded shadow-md w-full max-w-sm border border-gray-700"
       >
-        <h1 className="text-2xl font-bold mb-6 text-center">
+        <h1 className="text-2xl font-bold mb-6 text-center text-white">
           {isSignUp ? "회원가입" : "로그인"}
         </h1>
         <input
@@ -37,7 +37,7 @@ export default function Login() {
           placeholder="이메일"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full mb-3 px-3 py-2 border rounded"
+          className="w-full mb-3 px-3 py-2 border border-gray-600 rounded bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           required
         />
         <input
@@ -45,13 +45,13 @@ export default function Login() {
           placeholder="비밀번호"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full mb-3 px-3 py-2 border rounded"
+          className="w-full mb-3 px-3 py-2 border border-gray-600 rounded bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           required
         />
-        {error && <div className="text-red-500 mb-3">{error}</div>}
+        {error && <div className="text-red-400 mb-3">{error}</div>}
         <button
           type="submit"
-          className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 transition"
+          className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition focus:ring-2 focus:ring-blue-500"
           disabled={loading}
         >
           {loading ? "처리 중..." : isSignUp ? "회원가입" : "로그인"}
@@ -59,7 +59,7 @@ export default function Login() {
         <div className="mt-4 text-center">
           <button
             type="button"
-            className="text-blue-500 underline"
+            className="text-blue-400 underline hover:text-blue-300"
             onClick={() => setIsSignUp((v) => !v)}
           >
             {isSignUp ? "이미 계정이 있으신가요? 로그인" : "계정이 없으신가요? 회원가입"}

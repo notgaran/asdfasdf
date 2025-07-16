@@ -305,33 +305,33 @@ export default function Home() {
   if (!session) return <Login />;
 
   return (
-    <main className="min-h-screen bg-gray-50 p-4">
+    <main className="min-h-screen bg-gray-900 text-gray-100 p-4">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-center mb-8">감정일기</h1>
+        <h1 className="text-3xl font-bold text-center mb-8 text-white">감정일기</h1>
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* 왼쪽: 개인 일기 작성 및 관리 */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4">내 일기 작성</h2>
+          <div className="bg-gray-800 rounded-lg shadow-md p-6 border border-gray-700">
+            <h2 className="text-xl font-semibold mb-4 text-white">내 일기 작성</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block mb-2 font-medium">오늘의 감정</label>
+                <label className="block mb-2 font-medium text-gray-200">오늘의 감정</label>
                 <input
                   type="text"
                   placeholder="😊 😢 😡 등 이모지 또는 텍스트"
                   value={emotion}
                   onChange={(e) => setEmotion(e.target.value)}
-                  className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-600 rounded bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   required
                 />
               </div>
               <div>
-                <label className="block mb-2 font-medium">내용</label>
+                <label className="block mb-2 font-medium text-gray-200">내용</label>
                 <textarea
                   placeholder="오늘의 감정을 자유롭게 적어보세요."
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
-                  className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-600 rounded bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   rows={4}
                   required
                 />
@@ -342,16 +342,16 @@ export default function Home() {
                   id="isPublic"
                   checked={isPublic}
                   onChange={(e) => setIsPublic(e.target.checked)}
-                  className="rounded"
+                  className="rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
                 />
-                <label htmlFor="isPublic" className="text-sm">
+                <label htmlFor="isPublic" className="text-sm text-gray-200">
                   다른 사람들과 공유하기
                 </label>
               </div>
-              {error && <div className="text-red-500 text-sm">{error}</div>}
+              {error && <div className="text-red-400 text-sm">{error}</div>}
               <button
                 type="submit"
-                className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 transition disabled:opacity-50"
+                className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition disabled:opacity-50 focus:ring-2 focus:ring-blue-500"
                 disabled={loading}
               >
                 {loading ? "저장 중..." : "일기 저장"}
@@ -360,20 +360,20 @@ export default function Home() {
 
             <div className="mt-8">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">내 감정일기</h3>
-                <div className="text-sm text-gray-600">
-                  총 받은 공감: <span className="font-semibold text-red-500">❤️ {totalLikes}</span>
+                <h3 className="text-lg font-semibold text-white">내 감정일기</h3>
+                <div className="text-sm text-gray-300">
+                  총 받은 공감: <span className="font-semibold text-red-400">❤️ {totalLikes}</span>
                 </div>
               </div>
-              {loading && <div className="text-gray-500">불러오는 중...</div>}
+              {loading && <div className="text-gray-400">불러오는 중...</div>}
               {diaries.length === 0 && !loading && (
-                <div className="text-gray-500">작성한 일기가 없습니다.</div>
+                <div className="text-gray-400">작성한 일기가 없습니다.</div>
               )}
               <div className="space-y-3">
                 {diaries.map((d) => (
-                  <div key={d.id} className="bg-gray-50 p-3 rounded">
+                  <div key={d.id} className="bg-gray-700 p-3 rounded border border-gray-600">
                     <div className="text-2xl mb-1">{d.emotion}</div>
-                    <div className="mb-2 whitespace-pre-line text-sm">{d.content}</div>
+                    <div className="mb-2 whitespace-pre-line text-sm text-gray-200">{d.content}</div>
                     <div className="flex justify-between items-center text-xs text-gray-400">
                       <div className="flex items-center space-x-4">
                         <span>{new Date(d.created_at).toLocaleString()}</span>
@@ -381,8 +381,8 @@ export default function Home() {
                           onClick={() => handleTogglePrivacy(d.id, d.is_public)}
                           className={`px-2 py-1 rounded text-xs transition-colors ${
                             d.is_public 
-                              ? 'bg-green-100 text-green-800 hover:bg-green-200' 
-                              : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                              ? 'bg-green-600 text-white hover:bg-green-700' 
+                              : 'bg-gray-600 text-gray-200 hover:bg-gray-500'
                           }`}
                         >
                           {d.is_public ? '공개' : '비공개'}
@@ -390,14 +390,14 @@ export default function Home() {
                       </div>
                       <div className="flex items-center space-x-2">
                         {d.is_public && (
-                          <div className="flex items-center space-x-1 text-red-500">
+                          <div className="flex items-center space-x-1 text-red-400">
                             <span>❤️</span>
                             <span className="font-medium">{d.like_count || 0}</span>
                           </div>
                         )}
                         <button
                           onClick={() => handleDelete(d.id)}
-                          className="text-red-500 hover:text-red-700 text-xs px-2 py-1 rounded hover:bg-red-50"
+                          className="text-red-400 hover:text-red-300 text-xs px-2 py-1 rounded hover:bg-red-900/20"
                         >
                           삭제
                         </button>
@@ -410,18 +410,18 @@ export default function Home() {
           </div>
 
           {/* 오른쪽: 다른 사람들의 공개 일기 */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4">다른 사람들의 일기</h2>
+          <div className="bg-gray-800 rounded-lg shadow-md p-6 border border-gray-700">
+            <h2 className="text-xl font-semibold mb-4 text-white">다른 사람들의 일기</h2>
             {publicDiaries.length === 0 ? (
-              <div className="text-gray-500">아직 공개된 일기가 없습니다.</div>
+              <div className="text-gray-400">아직 공개된 일기가 없습니다.</div>
             ) : (
               <div className="space-y-4">
                 {publicDiaries.map((d) => (
-                  <div key={d.id} className="bg-blue-50 p-4 rounded border-l-4 border-blue-400">
+                  <div key={d.id} className="bg-blue-900/30 p-4 rounded border-l-4 border-blue-500 border border-gray-600">
                     <div className="text-2xl mb-2">{d.emotion}</div>
-                    <div className="mb-3 whitespace-pre-line">{d.content}</div>
+                    <div className="mb-3 whitespace-pre-line text-gray-200">{d.content}</div>
                     <div className="flex justify-between items-center">
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-gray-400">
                         <div>{new Date(d.created_at).toLocaleString()}</div>
                       </div>
                       <div className="flex items-center space-x-2">
@@ -429,8 +429,8 @@ export default function Home() {
                           onClick={() => handleLike(d.id, d.is_liked || false)}
                           className={`flex items-center space-x-1 px-3 py-1 rounded-full text-sm transition-colors ${
                             d.is_liked 
-                              ? 'bg-red-100 text-red-600 hover:bg-red-200' 
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                              ? 'bg-red-600 text-white hover:bg-red-700' 
+                              : 'bg-gray-600 text-gray-200 hover:bg-gray-500'
                           }`}
                           disabled={!session}
                         >
@@ -450,7 +450,7 @@ export default function Home() {
 
         <div className="text-center mt-8">
           <button
-            className="text-sm text-gray-500 underline hover:text-gray-700"
+            className="text-sm text-gray-400 underline hover:text-gray-300"
             onClick={async () => {
               await supabase.auth.signOut();
             }}
