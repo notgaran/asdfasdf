@@ -326,21 +326,21 @@ export default function Home() {
     setPopupLoading(false);
   };
 
-  // 팝업 닫기(애니메이션 적용)
+  // 팝업 닫기(애니메이션 없이 즉시 닫힘)
   const handleClosePopup = () => {
-    setPopupVisible(false);
-    closeTimer.current && clearTimeout(closeTimer.current);
-    closeTimer.current = setTimeout(() => {
-      setPopupOpen(false);
-    }, 250); // 애니메이션 시간과 맞춤
+    setPopupOpen(false);
   };
 
   // 팝업 애니메이션 효과
   useEffect(() => {
+    if (popupOpen && popupLoading) {
+      setPopupVisible(true); // 로딩 중에는 항상 보이게
+      return;
+    }
     if (popupOpen && !popupLoading) {
       setPopupVisible(false);
       popupTimer.current && clearTimeout(popupTimer.current);
-      popupTimer.current = setTimeout(() => setPopupVisible(true), 50); // 약간의 딜레이 후 등장
+      popupTimer.current = setTimeout(() => setPopupVisible(true), 50);
     } else {
       setPopupVisible(false);
     }
@@ -514,67 +514,57 @@ export default function Home() {
           </button>
         </div>
       </div>
-      {/* 감정분석 팝업 */}
-      {popupOpen && popupLoading && (
+      {popupOpen && (
         <div
           style={{
             position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-            background: 'rgba(10,12,20,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-            opacity: popupVisible ? 1 : 0, transition: 'opacity 0.25s cubic-bezier(.4,2,.6,1)'
+            background: 'rgba(10,12,20,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
           }}
           onClick={handleClosePopup}
         >
-          {/* 로딩 스피너 */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }} onClick={e => e.stopPropagation()}>
-            <div style={{
-              width: 56, height: 56, border: '6px solid #23283a', borderTop: '6px solid #8b9dc3', borderRadius: '50%',
-              animation: 'spin 1s linear infinite', marginBottom: 18
-            }} />
-            <span style={{ color: '#b6c2e2', fontSize: 18, fontWeight: 500 }}>분석 중...</span>
-          </div>
+          {popupLoading ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }} onClick={e => e.stopPropagation()}>
+              <div style={{
+                width: 56, height: 56, border: '6px solid #23283a', borderTop: '6px solid #8b9dc3', borderRadius: '50%',
+                animation: 'spin 1s linear infinite', marginBottom: 18
+              }} />
+              <span style={{ color: '#b6c2e2', fontSize: 18, fontWeight: 500 }}>분석 중...</span>
+            </div>
+          ) : (
+            <div
+              style={{
+                background: '#181c24', color: '#e5e7eb', padding: 36, borderRadius: 18, minWidth: 340, maxWidth: '90vw',
+                boxShadow: '0 8px 32px #0008', textAlign: 'center', position: 'relative', fontFamily: 'inherit',
+                border: '1.5px solid #23283a'
+              }}
+              onClick={e => e.stopPropagation()}
+            >
+              <button
+                onClick={handleClosePopup}
+                style={{
+                  position: 'absolute', top: 18, right: 18, background: 'none', border: 'none', color: '#8b9dc3', fontSize: 20, cursor: 'pointer', fontWeight: 700, zIndex: 2, padding: 0, lineHeight: 1
+                }}
+                aria-label="닫기"
+              >
+                ×
+              </button>
+              <h3 style={{ fontSize: 22, fontWeight: 700, marginBottom: 18, color: '#b6c2e2', letterSpacing: '-0.5px' }}>감정 분석 결과</h3>
+              <div style={{ margin: '18px 0', color: '#e5e7eb', fontSize: 16 }}>
+                <b style={{ color: '#8b9dc3', fontWeight: 600 }}>원문:</b>
+                <div style={{ margin: '10px 0 18px', color: '#b6c2e2', fontSize: 15, wordBreak: 'break-all' }}>{popupContent}</div>
+                <b style={{ color: '#8b9dc3', fontWeight: 600 }}>분석:</b>
+                <div style={{ margin: '10px 0', minHeight: 40, color: '#f1f3f9', fontSize: 16, lineHeight: 1.7 }}>
+                  {popupAnalysis}
+                </div>
+              </div>
+            </div>
+          )}
           <style>{`
             @keyframes spin {
               0% { transform: rotate(0deg); }
               100% { transform: rotate(360deg); }
             }
           `}</style>
-        </div>
-      )}
-      {popupOpen && !popupLoading && (
-        <div
-          style={{
-            position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-            background: 'rgba(10,12,20,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-            opacity: popupVisible ? 1 : 0, transition: 'opacity 0.25s cubic-bezier(.4,2,.6,1)'
-          }}
-          onClick={handleClosePopup}
-        >
-          <div
-            className={`transition-all duration-300 ${popupVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
-            style={{
-              background: '#181c24', color: '#e5e7eb', padding: 36, borderRadius: 18, minWidth: 340, maxWidth: '90vw', boxShadow: '0 8px 32px #0008', textAlign: 'center', position: 'relative', fontFamily: 'inherit', border: '1.5px solid #23283a', transition: 'all 0.3s cubic-bezier(.4,2,.6,1)' 
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            <button
-              onClick={handleClosePopup}
-              style={{
-                position: 'absolute', top: 18, right: 18, background: 'none', border: 'none', color: '#8b9dc3', fontSize: 20, cursor: 'pointer', fontWeight: 700, zIndex: 2, padding: 0, lineHeight: 1
-              }}
-              aria-label="닫기"
-            >
-              ×
-            </button>
-            <h3 style={{ fontSize: 22, fontWeight: 700, marginBottom: 18, color: '#b6c2e2', letterSpacing: '-0.5px' }}>감정 분석 결과</h3>
-            <div style={{ margin: '18px 0', color: '#e5e7eb', fontSize: 16 }}>
-              <b style={{ color: '#8b9dc3', fontWeight: 600 }}>원문:</b>
-              <div style={{ margin: '10px 0 18px', color: '#b6c2e2', fontSize: 15, wordBreak: 'break-all' }}>{popupContent}</div>
-              <b style={{ color: '#8b9dc3', fontWeight: 600 }}>분석:</b>
-              <div style={{ margin: '10px 0', minHeight: 40, color: '#f1f3f9', fontSize: 16, lineHeight: 1.7 }}>
-                {popupAnalysis}
-              </div>
-            </div>
-          </div>
         </div>
       )}
     </main>

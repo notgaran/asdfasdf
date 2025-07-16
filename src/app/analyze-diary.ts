@@ -18,3 +18,13 @@ export async function analyzeDiary(diary_id: string, content: string): Promise<s
 
   return data?.result ?? '분석 결과가 없습니다.';
 }
+
+// 일기 목록을 Edge Function을 통해 가져오는 함수
+export async function getDiaries(): Promise<any[]> {
+  const { data, error } = await supabase.functions.invoke('get-diaries');
+  if (error) {
+    console.error('일기 목록 호출 오류:', error);
+    return [];
+  }
+  return data?.diaries ?? [];
+}
