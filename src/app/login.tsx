@@ -22,37 +22,11 @@ export default function Login() {
       result = await supabase.auth.signUp({ email: email.trim(), password });
       console.log("Signup result:", result); // 디버깅용 로그
       
-      if (result.error) {
-        console.log("Signup error:", result.error); // 디버깅용 로그
-        
-        // 이미 가입된 이메일인 경우 한국어 메시지로 변환
-        if (result.error.message.includes("already registered") || 
-            result.error.message.includes("already been registered") ||
-            result.error.message.includes("User already registered") ||
-            result.error.message.includes("already exists") ||
-            result.error.message.includes("duplicate") ||
-            result.error.message.includes("A user with this email address has already been registered") ||
-            result.error.message.includes("already been registered") ||
-            result.error.message.includes("User already registered") ||
-            result.error.message.includes("User already registered") ||
-            result.error.message.includes("already been registered")) {
-          setError("이미 가입된 이메일 주소입니다. 로그인을 시도해주세요.");
-        } else if (result.error.message.includes("For security purposes, you can only request this after")) {
-          setError("보안을 위해 잠시 후에 다시 시도해주세요.");
-        } else {
-          setError(result.error.message);
-        }
-      } else if (result.data.user) {
-        // 사용자가 생성되었지만 세션이 없는 경우 (이메일 인증 필요)
-        if (!result.data.session) {
-          // 새로운 계정이므로 이메일 인증 안내
-          setShowVerificationMessage(true);
-          setEmail("");
-          setPassword("");
-        } else {
-          // 즉시 로그인된 경우 (이미 인증된 계정)
-          setError("이미 인증된 계정입니다. 로그인을 시도해주세요.");
-        }
+      // 회원가입 시도 시 무조건 이메일 인증 안내
+      if (result.data.user) {
+        setShowVerificationMessage(true);
+        setEmail("");
+        setPassword("");
       }
     } else {
       result = await supabase.auth.signInWithPassword({ email: email.trim(), password });
@@ -84,8 +58,7 @@ export default function Login() {
         
         {showVerificationMessage && (
           <div className="mb-4 p-3 bg-green-900/30 border border-green-600 rounded text-green-300 text-sm">
-            ✅ 회원가입이 완료되었습니다!<br/>
-            이메일 인증 링크를 확인해주세요.
+            ✅ 이메일을 확인해주세요! 가입되지 않은 이메일이라면 인증 링크가 전송됩니다.
           </div>
         )}
         
