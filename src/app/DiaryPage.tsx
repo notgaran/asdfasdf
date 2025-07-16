@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { analyzeDiary } from './analyze-diary';
+import { analyzeDiary } from './diary-api';
 
 export default function DiaryPage() {
   const [input, setInput] = useState('');

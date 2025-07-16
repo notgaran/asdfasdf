@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import { supabase } from "./supabaseClient";
 import Login from "./login";
 import type { Session } from '@supabase/supabase-js';
-import { analyzeDiary } from './analyze-diary';
+import { getDiaries, createDiary, deleteDiary, toggleDiaryPrivacy, likeDiary, getPublicDiaries, analyzeDiary, getDiaryLikes } from './diary-api';
 
 interface Diary {
   id: string;
@@ -32,12 +32,20 @@ export default function Home() {
   const [popupVisible, setPopupVisible] = useState(false); // 애니메이션용
   const popupTimer = useRef<NodeJS.Timeout | null>(null);
   const closeTimer = useRef<NodeJS.Timeout | null>(null);
+  const [likeLoading, setLikeLoading] = useState<string | null>(null); // 좋아요 처리 중인 diaryId
 
   // 로그인 상태 관리
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-    });
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        setSession(null);
+      } else {
+        setSession(data.session);
+      }
+    };
+    checkSession();
+
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
@@ -46,48 +54,28 @@ export default function Home() {
     };
   }, []);
 
-  // 개인 일기 목록 불러오기 (공감 수 포함)
+  // 개인 일기 목록 불러오기
   useEffect(() => {
     if (!session) return;
     const fetchDiaries = async () => {
       setLoading(true);
       setError("");
       try {
-        const { data, error } = await supabase
-          .from("diary")
-          .select("id, emotion, content, created_at, is_public")
-          .eq("user_id", session.user.id)
-          .order("created_at", { ascending: false });
-        
-        if (error) {
-          setError(error.message);
-          setLoading(false);
-          return;
-        }
-        
-        // 각 일기에 대해 좋아요 수를 별도로 가져오기
+        const diaries = await getDiaries({ user_id: session.user.id });
+        // 각 일기의 like_count 최신화
         const diariesWithLikes = await Promise.all(
-          (data || []).map(async (diary) => {
-            const { count: likeCount } = await supabase
-              .from("diary_likes")
-              .select("*", { count: "exact", head: true })
-              .eq("diary_id", diary.id);
-            
-            return {
-              ...diary,
-              like_count: likeCount || 0
-            };
+          diaries.map(async (d: Diary) => {
+            if (d.is_public) {
+              const likes = await getDiaryLikes({ diary_id: d.id, user_id: session.user.id });
+              return { ...d, like_count: likes.like_count };
+            }
+            return d;
           })
         );
-        
         setDiaries(diariesWithLikes);
-        
-        // 총 공감 수 계산
-        const total = diariesWithLikes.reduce((sum, diary) => sum + (diary.like_count || 0), 0);
-        setTotalLikes(total);
-        
+        // 총 받은 공감 계산
+        setTotalLikes(diariesWithLikes.reduce((sum, d) => sum + (d.like_count || 0), 0));
       } catch (error) {
-        console.error("Error fetching personal diaries:", error);
         setError("일기를 불러오는 중 오류가 발생했습니다.");
       }
       setLoading(false);
@@ -95,68 +83,22 @@ export default function Home() {
     fetchDiaries();
   }, [session]);
 
-  // 공개 일기 목록 불러오기 (좋아요 수와 사용자의 좋아요 여부 포함)
+  // 공개 일기 목록 불러오기
   useEffect(() => {
+    if (!session) return;
     const fetchPublicDiaries = async () => {
       try {
-        // 먼저 공개 일기들을 가져오기 (자신의 일기 제외)
-        let query = supabase
-          .from("diary")
-          .select("id, emotion, content, created_at, is_public")
-          .eq("is_public", true)
-          .order("created_at", { ascending: false })
-          .limit(20);
-        
-        // 로그인한 사용자의 경우 자신의 일기 제외
-        if (session) {
-          query = query.neq("user_id", session.user.id);
-        }
-        
-        const { data: diaries, error: diariesError } = await query;
-        
-        if (diariesError) {
-          console.error("Error fetching diaries:", diariesError);
-          return;
-        }
-        
-        if (!diaries || diaries.length === 0) {
-          setPublicDiaries([]);
-          return;
-        }
-        
-        // 각 일기에 대해 좋아요 수를 별도로 가져오기
+        const diaries = await getPublicDiaries({ user_id: session.user.id });
+        // 각 일기의 like_count, is_liked 최신화
         const diariesWithLikes = await Promise.all(
-          diaries.map(async (diary) => {
-            // 좋아요 수 가져오기
-            const { count: likeCount } = await supabase
-              .from("diary_likes")
-              .select("*", { count: "exact", head: true })
-              .eq("diary_id", diary.id);
-            
-            // 로그인한 사용자의 좋아요 여부 확인
-            let isLiked = false;
-            if (session) {
-              const { data: likeData } = await supabase
-                .from("diary_likes")
-                .select("id")
-                .eq("diary_id", diary.id)
-                .eq("user_id", session.user.id)
-                .single();
-              isLiked = !!likeData;
-            }
-            
-            return {
-              ...diary,
-              like_count: likeCount || 0,
-              is_liked: isLiked
-            };
+          diaries.map(async (d: Diary) => {
+            const likes = await getDiaryLikes({ diary_id: d.id, user_id: session.user.id });
+            return { ...d, like_count: likes.like_count, is_liked: likes.is_liked };
           })
         );
-        
         setPublicDiaries(diariesWithLikes);
-        
       } catch (error) {
-        console.error("Error in fetchPublicDiaries:", error);
+        setPublicDiaries([]);
       }
     };
     fetchPublicDiaries();
@@ -166,51 +108,23 @@ export default function Home() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!emotion || !content) return;
+    if (!session) return;
     setLoading(true);
     setError("");
     try {
-      const { error } = await supabase.from("diary").insert({
-        user_id: session?.user.id,
+      await createDiary({
+        user_id: session.user.id,
         emotion,
         content,
         is_public: isPublic,
       });
-      if (error) setError(error.message);
       setEmotion("");
       setContent("");
       setIsPublic(false);
-      
-      // 새로고침
-      const { data } = await supabase
-        .from("diary")
-        .select("id, emotion, content, created_at, is_public")
-        .eq("user_id", session?.user.id)
-        .order("created_at", { ascending: false });
-      
-      // 각 일기에 대해 좋아요 수를 별도로 가져오기
-      const diariesWithLikes = await Promise.all(
-        (data || []).map(async (diary) => {
-          const { count: likeCount } = await supabase
-            .from("diary_likes")
-            .select("*", { count: "exact", head: true })
-            .eq("diary_id", diary.id);
-          
-          return {
-            ...diary,
-            like_count: likeCount || 0
-          };
-        })
-      );
-      
-      setDiaries(diariesWithLikes);
-      
-      // 총 공감 수 업데이트
-      const total = diariesWithLikes.reduce((sum, diary) => sum + (diary.like_count || 0), 0);
-      setTotalLikes(total);
-      
-    } catch (error) {
-      console.error("Error submitting diary:", error);
-      setError("일기 저장 중 오류가 발생했습니다.");
+      const diaries = await getDiaries({ user_id: session.user.id });
+      setDiaries(diaries);
+    } catch (error: any) {
+      setError(error.message || "일기 저장 중 오류가 발생했습니다.");
     }
     setLoading(false);
   };
@@ -218,29 +132,10 @@ export default function Home() {
   // 일기 삭제
   const handleDelete = async (diaryId: string) => {
     if (!confirm("정말로 이 일기를 삭제하시겠습니까?")) return;
-    
     try {
-      const { error } = await supabase
-        .from("diary")
-        .delete()
-        .eq("id", diaryId)
-        .eq("user_id", session?.user.id);
-      
-      if (error) {
-        setError("일기 삭제 중 오류가 발생했습니다.");
-        return;
-      }
-      
-      // 목록에서 삭제된 일기 제거
+      await deleteDiary({ diary_id: diaryId, user_id: session?.user.id! });
       setDiaries(prev => prev.filter(diary => diary.id !== diaryId));
-      
-      // 총 공감 수 재계산
-      const updatedDiaries = diaries.filter(diary => diary.id !== diaryId);
-      const total = updatedDiaries.reduce((sum, diary) => sum + (diary.like_count || 0), 0);
-      setTotalLikes(total);
-      
     } catch (error) {
-      console.error("Error deleting diary:", error);
       setError("일기 삭제 중 오류가 발생했습니다.");
     }
   };
@@ -248,65 +143,34 @@ export default function Home() {
   // 공개/비공개 토글
   const handleTogglePrivacy = async (diaryId: string, currentPrivacy: boolean) => {
     try {
-      const { error } = await supabase
-        .from("diary")
-        .update({ is_public: !currentPrivacy })
-        .eq("id", diaryId)
-        .eq("user_id", session?.user.id);
-      
-      if (error) {
-        setError("공개 설정 변경 중 오류가 발생했습니다.");
-        return;
-      }
-      
-      // 목록에서 해당 일기 업데이트
-      setDiaries(prev => prev.map(diary => 
-        diary.id === diaryId 
+      await toggleDiaryPrivacy({ diary_id: diaryId, user_id: session?.user.id!, is_public: !currentPrivacy });
+      setDiaries(prev => prev.map(diary =>
+        diary.id === diaryId
           ? { ...diary, is_public: !currentPrivacy }
           : diary
       ));
-      
     } catch (error) {
-      console.error("Error toggling privacy:", error);
       setError("공개 설정 변경 중 오류가 발생했습니다.");
     }
   };
 
-  // 공감 버튼 클릭 처리
+  // 좋아요 처리 (공개 일기)
   const handleLike = async (diaryId: string, isLiked: boolean) => {
-    if (!session) return;
-    
-    if (isLiked) {
-      // 좋아요 취소
-      const { error } = await supabase
-        .from("diary_likes")
-        .delete()
-        .eq("diary_id", diaryId)
-        .eq("user_id", session.user.id);
-      
-      if (!error) {
-        setPublicDiaries(prev => prev.map(diary => 
-          diary.id === diaryId 
-            ? { ...diary, is_liked: false, like_count: (diary.like_count || 0) - 1 }
-            : diary
-        ));
-      }
-    } else {
-      // 좋아요 추가
-      const { error } = await supabase
-        .from("diary_likes")
-        .insert({
-          diary_id: diaryId,
-          user_id: session.user.id
-        });
-      
-      if (!error) {
-        setPublicDiaries(prev => prev.map(diary => 
-          diary.id === diaryId 
-            ? { ...diary, is_liked: true, like_count: (diary.like_count || 0) + 1 }
-            : diary
-        ));
-      }
+    if (!session || likeLoading === diaryId) return;
+    setLikeLoading(diaryId);
+    try {
+      await likeDiary({ diary_id: diaryId, user_id: session.user.id, like: !isLiked });
+      // 좋아요 처리 후 해당 일기의 최신 like_count, is_liked를 getDiaryLikes로 갱신
+      const likes = await getDiaryLikes({ diary_id: diaryId, user_id: session.user.id });
+      setPublicDiaries(prev => prev.map(diary =>
+        diary.id === diaryId
+          ? { ...diary, is_liked: likes.is_liked, like_count: likes.like_count }
+          : diary
+      ));
+    } catch (error) {
+      // 무시 또는 에러 처리
+    } finally {
+      setLikeLoading(null);
     }
   };
 
@@ -360,6 +224,30 @@ export default function Home() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* 왼쪽: 개인 일기 작성 및 관리 */}
           <div className="bg-gray-800 rounded-lg shadow-md p-6 border border-gray-700">
+            {/* 유저 정보 영역 */}
+            {session && (
+              <div className="mb-6 pb-4 border-b border-gray-700">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <span className="font-bold text-lg text-white">
+                      {session.user.user_metadata?.name || session.user.email?.split('@')[0] || '사용자'}
+                    </span>
+                  </div>
+                  <button
+                    className="text-sm text-gray-400 underline hover:text-gray-300"
+                    onClick={async () => { await supabase.auth.signOut(); }}
+                  >
+                    로그아웃
+                  </button>
+                </div>
+                <div className="text-xs text-gray-400 break-all">
+                  {session.user.email}
+                </div>
+                <div className="text-xs text-gray-500 mt-1">
+                  ID: {session.user.id}
+                </div>
+              </div>
+            )}
             <h2 className="text-xl font-semibold mb-4 text-white">내 일기 작성</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
@@ -487,7 +375,7 @@ export default function Home() {
                               ? 'bg-red-600 text-white hover:bg-red-700' 
                               : 'bg-gray-600 text-gray-200 hover:bg-gray-500'
                           }`}
-                          disabled={!session}
+                          disabled={!session || likeLoading === d.id}
                         >
                           <span className="text-lg">
                             {d.is_liked ? '❤️' : '🤍'}
@@ -507,7 +395,12 @@ export default function Home() {
           <button
             className="text-sm text-gray-400 underline hover:text-gray-300"
             onClick={async () => {
-              await supabase.auth.signOut();
+              try {
+                await supabase.auth.signOut();
+              } catch (e) {
+                // 403 등 에러 무시
+              }
+              setSession(null);
             }}
           >
             로그아웃
