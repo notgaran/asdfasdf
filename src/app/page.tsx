@@ -37,11 +37,12 @@ export default function Home() {
   // 로그인 상태 관리
   useEffect(() => {
     const checkSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!data.session) {
+      const { data, error } = await supabase.auth.getUser();
+      if (!data.user) {
         setSession(null);
       } else {
-        setSession(data.session);
+        const { data: sessionData } = await supabase.auth.getSession();
+        setSession(sessionData.session);
       }
     };
     checkSession();
@@ -397,10 +398,15 @@ export default function Home() {
             onClick={async () => {
               try {
                 await supabase.auth.signOut();
-              } catch (e) {
-                // 403 등 에러 무시
-              }
+              } catch (e) {}
               setSession(null);
+              // Supabase 세션 토큰 강제 삭제
+              Object.keys(localStorage).forEach((key) => {
+                if (key.includes('supabase') || key.includes('sb-')) {
+                  localStorage.removeItem(key);
+                }
+              });
+              window.location.reload();
             }}
           >
             로그아웃
