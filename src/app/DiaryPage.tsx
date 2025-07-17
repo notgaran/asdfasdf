@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { analyzeDiary } from './diary-api';
+import { generateAIInterpretation } from './diary-api';
 
 export default function DiaryPage() {
   const [input, setInput] = useState('');
@@ -22,12 +22,12 @@ export default function DiaryPage() {
     }
   };
 
-  // 글 클릭 → 감정분석
+  // 글 클릭 → AI 해몽
   const handleDiaryClick = async (content: string) => {
     setPopup({ open: true, content, analysis: null });
     setLoading(true);
-    const result = await analyzeDiary(content);
-    setPopup({ open: true, content, analysis: result });
+    const result = await generateAIInterpretation({ diary_id: 'temp', content });
+    setPopup({ open: true, content, analysis: result.dream_interpretation });
     setLoading(false);
   };
 

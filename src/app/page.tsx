@@ -1,38 +1,48 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
 import Login from "./login";
 import type { Session } from '@supabase/supabase-js';
-import { getDiaries, createDiary, deleteDiary, toggleDiaryPrivacy, likeDiary, getPublicDiaries, analyzeDiary, getDiaryLikes } from './diary-api';
-
-interface Diary {
-  id: string;
-  emotion: string;
-  content: string;
-  created_at: string;
-  is_public: boolean;
-  like_count?: number;
-  is_liked?: boolean;
-}
+import { 
+  getDiaries, 
+  createDiary, 
+  deleteDiary, 
+  getPublicDiaries, 
+  likeDiary, 
+  getDiaryLikes,
+  getFollowers,
+  getFollowing,
+  followUser,
+  unfollowUser,
+  isFollowing,
+  getUser,
+  searchDiaries,
+  getComments,
+  createComment,
+  deleteComment,
+  type Diary,
+  type User,
+  generateAIInterpretation,
+  incrementViews,
+  getDiaryById
+} from './diary-api';
+import { Heart, Eye, MessageCircle, Search, Plus, Edit, Trash, UserPlus, UserMinus, Share2 } from 'lucide-react';
 
 export default function Home() {
   const [session, setSession] = useState<Session | null>(null);
-  const [emotion, setEmotion] = useState("");
-  const [content, setContent] = useState("");
-  const [isPublic, setIsPublic] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [user, setUser] = useState<User | null>(null);
   const [diaries, setDiaries] = useState<Diary[]>([]);
   const [publicDiaries, setPublicDiaries] = useState<Diary[]>([]);
-  const [totalLikes, setTotalLikes] = useState(0);
-  const [popupOpen, setPopupOpen] = useState(false);
-  const [popupContent, setPopupContent] = useState('');
-  const [popupAnalysis, setPopupAnalysis] = useState<string | null>(null);
-  const [popupLoading, setPopupLoading] = useState(false);
-  const [popupVisible, setPopupVisible] = useState(false); // 애니메이션용
-  const popupTimer = useRef<NodeJS.Timeout | null>(null);
-  const closeTimer = useRef<NodeJS.Timeout | null>(null);
-  const [likeLoading, setLikeLoading] = useState<string | null>(null); // 좋아요 처리 중인 diaryId
+  const [followers, setFollowers] = useState<User[]>([]);
+  const [following, setFollowing] = useState<User[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filter, setFilter] = useState<'latest' | 'likes' | 'views' | 'comments'>('latest');
+  const [showWriteModal, setShowWriteModal] = useState(false);
+  const [showDiaryModal, setShowDiaryModal] = useState(false);
+  const [selectedDiary, setSelectedDiary] = useState<Diary | null>(null);
+  const [activeTab, setActiveTab] = useState<'original' | 'interpretation' | 'story'>('original');
 
   // 로그인 상태 관리
   useEffect(() => {
@@ -55,6 +65,16 @@ export default function Home() {
     };
   }, []);
 
+  // 사용자 정보 로드
+  useEffect(() => {
+    if (!session) return;
+    const loadUser = async () => {
+      const userData = await getUser({ user_id: session.user.id });
+      setUser(userData);
+    };
+    loadUser();
+  }, [session]);
+
   // 개인 일기 목록 불러오기
   useEffect(() => {
     if (!session) return;
@@ -63,19 +83,7 @@ export default function Home() {
       setError("");
       try {
         const diaries = await getDiaries({ user_id: session.user.id });
-        // 각 일기의 like_count 최신화
-        const diariesWithLikes = await Promise.all(
-          diaries.map(async (d: Diary) => {
-            if (d.is_public) {
-              const likes = await getDiaryLikes({ diary_id: d.id, user_id: session.user.id });
-              return { ...d, like_count: likes.like_count };
-            }
-            return d;
-          })
-        );
-        setDiaries(diariesWithLikes);
-        // 총 받은 공감 계산
-        setTotalLikes(diariesWithLikes.reduce((sum, d) => sum + (d.like_count || 0), 0));
+        setDiaries(diaries);
       } catch (error) {
         setError("일기를 불러오는 중 오류가 발생했습니다.");
       }
@@ -89,45 +97,72 @@ export default function Home() {
     if (!session) return;
     const fetchPublicDiaries = async () => {
       try {
-        const diaries = await getPublicDiaries({ user_id: session.user.id });
-        // 각 일기의 like_count, is_liked 최신화
-        const diariesWithLikes = await Promise.all(
-          diaries.map(async (d: Diary) => {
-            const likes = await getDiaryLikes({ diary_id: d.id, user_id: session.user.id });
-            return { ...d, like_count: likes.like_count, is_liked: likes.is_liked };
-          })
-        );
-        setPublicDiaries(diariesWithLikes);
+        const diaries = await getPublicDiaries({ user_id: session.user.id, filter });
+        setPublicDiaries(diaries);
       } catch (error) {
         setPublicDiaries([]);
       }
     };
     fetchPublicDiaries();
+  }, [session, filter]);
+
+  // 팔로워/팔로잉 목록 불러오기
+  useEffect(() => {
+    if (!session) return;
+    const loadFollowData = async () => {
+      try {
+        const [followersData, followingData] = await Promise.all([
+          getFollowers({ user_id: session.user.id }),
+          getFollowing({ user_id: session.user.id })
+        ]);
+        setFollowers(followersData);
+        setFollowing(followingData);
+      } catch (error) {
+        console.error('팔로우 데이터 로드 오류:', error);
+      }
+    };
+    loadFollowData();
   }, [session]);
 
-  // 일기 작성
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!emotion || !content) return;
-    if (!session) return;
-    setLoading(true);
-    setError("");
+  // 검색 처리
+  const handleSearch = async () => {
+    if (!searchQuery.trim() || !session) return;
     try {
-      await createDiary({
-        user_id: session.user.id,
-        emotion,
-        content,
-        is_public: isPublic,
-      });
-      setEmotion("");
-      setContent("");
-      setIsPublic(false);
-      const diaries = await getDiaries({ user_id: session.user.id });
-      setDiaries(diaries);
-    } catch (error: any) {
-      setError(error.message || "일기 저장 중 오류가 발생했습니다.");
+      const results = await searchDiaries({ query: searchQuery, user_id: session.user.id });
+      setPublicDiaries(results);
+    } catch (error) {
+      setError("검색 중 오류가 발생했습니다.");
     }
-    setLoading(false);
+  };
+
+  // 팔로우/언팔로우 처리
+  const handleFollow = async (targetUserId: string, isFollowing: boolean) => {
+    if (!session) return;
+    try {
+      if (isFollowing) {
+        await unfollowUser({ follower_id: session.user.id, following_id: targetUserId });
+      } else {
+        await followUser({ follower_id: session.user.id, following_id: targetUserId });
+      }
+      // 팔로잉 목록 새로고침
+      const followingData = await getFollowing({ user_id: session.user.id });
+      setFollowing(followingData);
+    } catch (error) {
+      setError("팔로우 처리 중 오류가 발생했습니다.");
+    }
+  };
+
+  // 좋아요 처리
+  const handleLike = async (diaryId: string, isLiked: boolean) => {
+    if (!session) return;
+    try {
+      await likeDiary({ diary_id: diaryId, user_id: session.user.id, like: !isLiked });
+      // 공개 일기 목록 새로고침
+      const diaries = await getPublicDiaries({ user_id: session.user.id, filter });
+      setPublicDiaries(diaries);
+    } catch (error) {
+      setError("좋아요 처리 중 오류가 발생했습니다.");
+    }
   };
 
   // 일기 삭제
@@ -141,249 +176,234 @@ export default function Home() {
     }
   };
 
-  // 공개/비공개 토글
-  const handleTogglePrivacy = async (diaryId: string, currentPrivacy: boolean) => {
-    try {
-      await toggleDiaryPrivacy({ diary_id: diaryId, user_id: session?.user.id!, is_public: !currentPrivacy });
-      setDiaries(prev => prev.map(diary =>
-        diary.id === diaryId
-          ? { ...diary, is_public: !currentPrivacy }
-          : diary
-      ));
-    } catch (error) {
-      setError("공개 설정 변경 중 오류가 발생했습니다.");
-    }
-  };
-
-  // 좋아요 처리 (공개 일기)
-  const handleLike = async (diaryId: string, isLiked: boolean) => {
-    if (!session || likeLoading === diaryId) return;
-    setLikeLoading(diaryId);
-    try {
-      await likeDiary({ diary_id: diaryId, user_id: session.user.id, like: !isLiked });
-      // 좋아요 처리 후 해당 일기의 최신 like_count, is_liked를 getDiaryLikes로 갱신
-      const likes = await getDiaryLikes({ diary_id: diaryId, user_id: session.user.id });
-      setPublicDiaries(prev => prev.map(diary =>
-        diary.id === diaryId
-          ? { ...diary, is_liked: likes.is_liked, like_count: likes.like_count }
-          : diary
-      ));
-    } catch (error) {
-      // 무시 또는 에러 처리
-    } finally {
-      setLikeLoading(null);
-    }
-  };
-
-  // 일기 클릭 시 감정분석 팝업
-  const handleDiaryAnalysis = async (diary_id: string, content: string) => {
-    setPopupOpen(true);
-    setPopupContent(content);
-    setPopupAnalysis(null);
-    setPopupLoading(true);
-    setPopupVisible(false);
-    try {
-      const result = await analyzeDiary(diary_id, content);
-      setPopupAnalysis(result);
-    } catch (error) {
-      setPopupAnalysis('분석 중 오류가 발생했습니다.');
-    }
-    setPopupLoading(false);
-  };
-
-  // 팝업 닫기(애니메이션 없이 즉시 닫힘)
-  const handleClosePopup = () => {
-    setPopupOpen(false);
-  };
-
-  // 팝업 애니메이션 효과
-  useEffect(() => {
-    if (popupOpen && popupLoading) {
-      setPopupVisible(true); // 로딩 중에는 항상 보이게
-      return;
-    }
-    if (popupOpen && !popupLoading) {
-      setPopupVisible(false);
-      popupTimer.current && clearTimeout(popupTimer.current);
-      popupTimer.current = setTimeout(() => setPopupVisible(true), 50);
-    } else {
-      setPopupVisible(false);
-    }
-    return () => {
-      popupTimer.current && clearTimeout(popupTimer.current);
-      closeTimer.current && clearTimeout(closeTimer.current);
-    };
-  }, [popupOpen, popupLoading]);
-
   if (!session) return <Login />;
 
   return (
-    <main className="min-h-screen bg-gray-900 text-gray-100 p-4">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-center mb-8 text-white">감정일기</h1>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* 왼쪽: 개인 일기 작성 및 관리 */}
-          <div className="bg-gray-800 rounded-lg shadow-md p-6 border border-gray-700">
-            {/* 유저 정보 영역 */}
-            {session && (
-              <div className="mb-6 pb-4 border-b border-gray-700">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <span className="font-bold text-lg text-white">
-                      {session.user.user_metadata?.name || session.user.email?.split('@')[0] || '사용자'}
-                    </span>
-                  </div>
-                  <button
-                    className="text-sm text-gray-400 underline hover:text-gray-300"
-                    onClick={async () => { await supabase.auth.signOut(); }}
-                  >
-                    로그아웃
-                  </button>
-                </div>
-                <div className="text-xs text-gray-400 break-all">
-                  {session.user.email}
-                </div>
-                <div className="text-xs text-gray-500 mt-1">
-                  ID: {session.user.id}
+    <main className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 text-gray-800">
+      <div className="max-w-7xl mx-auto p-4">
+        {/* 헤더 */}
+        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-purple-600">DreamInside</h1>
+              <p className="text-gray-600">꿈을 기록하고 AI와 함께 해석해보세요</p>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="text-right">
+                <div className="font-semibold text-gray-800">{user?.nickname || '사용자'}</div>
+                <div className="text-sm text-gray-500">{user?.email}</div>
+                <div className="text-xs text-gray-400">
+                  팔로잉 {following.length} • 팔로워 {followers.length}
                 </div>
               </div>
-            )}
-            <h2 className="text-xl font-semibold mb-4 text-white">내 일기 작성</h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block mb-2 font-medium text-gray-200">오늘의 감정</label>
-                <input
-                  type="text"
-                  placeholder="😊 😢 😡 등 이모지 또는 텍스트"
-                  value={emotion}
-                  onChange={(e) => setEmotion(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-600 rounded bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block mb-2 font-medium text-gray-200">내용</label>
-                <textarea
-                  placeholder="오늘의 감정을 자유롭게 적어보세요."
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-600 rounded bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  rows={4}
-                  required
-                />
-              </div>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="isPublic"
-                  checked={isPublic}
-                  onChange={(e) => setIsPublic(e.target.checked)}
-                  className="rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
-                />
-                <label htmlFor="isPublic" className="text-sm text-gray-200">
-                  다른 사람들과 공유하기
-                </label>
-              </div>
-              {error && <div className="text-red-400 text-sm">{error}</div>}
               <button
-                type="submit"
-                className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition disabled:opacity-50 focus:ring-2 focus:ring-blue-500"
-                disabled={loading}
+                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+                onClick={() => setShowWriteModal(true)}
               >
-                {loading ? "저장 중..." : "일기 저장"}
+                <Plus className="w-4 h-4 inline mr-2" />
+                꿈 기록하기
               </button>
-            </form>
+              <button
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+                onClick={async () => { await supabase.auth.signOut(); }}
+              >
+                로그아웃
+              </button>
+            </div>
+          </div>
+        </div>
 
-            <div className="mt-8">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-white">내 감정일기</h3>
-                <div className="text-sm text-gray-300">
-                  총 받은 공감: <span className="font-semibold text-red-400">❤️ {totalLikes}</span>
-                </div>
+        {/* 3단 레이아웃 */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* 왼쪽: 내 일기 목록 */}
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <h2 className="text-xl font-semibold text-gray-800 mb-4">내 꿈 일기</h2>
+            {loading ? (
+              <div className="text-center py-8 text-gray-500">로딩 중...</div>
+            ) : diaries.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                아직 기록된 꿈이 없습니다.
+                <br />
+                <button 
+                  className="text-purple-600 hover:text-purple-700 mt-2"
+                  onClick={() => setShowWriteModal(true)}
+                >
+                  첫 꿈을 기록해보세요
+                </button>
               </div>
-              {loading && <div className="text-gray-400">불러오는 중...</div>}
-              {diaries.length === 0 && !loading && (
-                <div className="text-gray-400">작성한 일기가 없습니다.</div>
-              )}
+            ) : (
               <div className="space-y-3">
-                {diaries.map((d) => (
-                  <div key={d.id} className="bg-gray-700 p-3 rounded border border-gray-600">
-                    <div className="text-2xl mb-1">{d.emotion}</div>
-                    {/* 일기 본문 클릭 시 감정분석 */}
-                    <div
-                      className="mb-2 whitespace-pre-line text-sm text-gray-200 cursor-pointer hover:underline"
-                      onClick={() => handleDiaryAnalysis(d.id, d.content)}
-                      title="클릭하면 감정분석 결과가 나옵니다."
-                    >
-                      {d.content}
-                    </div>
-                    <div className="flex justify-between items-center text-xs text-gray-400">
-                      <div className="flex items-center space-x-4">
-                        <span>{new Date(d.created_at).toLocaleString()}</span>
-                        <button
-                          onClick={() => handleTogglePrivacy(d.id, d.is_public)}
-                          className={`px-2 py-1 rounded text-xs transition-colors ${
-                            d.is_public 
-                              ? 'bg-green-600 text-white hover:bg-green-700' 
-                              : 'bg-gray-600 text-gray-200 hover:bg-gray-500'
-                          }`}
-                        >
-                          {d.is_public ? '공개' : '비공개'}
-                        </button>
-                      </div>
+                {diaries.map((diary) => (
+                  <div key={diary.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-medium text-gray-800 truncate">{diary.title}</h3>
                       <div className="flex items-center space-x-2">
-                        {d.is_public && (
-                          <div className="flex items-center space-x-1 text-red-400">
-                            <span>❤️</span>
-                            <span className="font-medium">{d.like_count || 0}</span>
-                          </div>
-                        )}
                         <button
-                          onClick={() => handleDelete(d.id)}
-                          className="text-red-400 hover:text-red-300 text-xs px-2 py-1 rounded hover:bg-red-900/20"
+                          className="text-gray-400 hover:text-purple-600 transition-colors"
+                          onClick={() => {
+                            setSelectedDiary(diary);
+                            setShowDiaryModal(true);
+                          }}
                         >
-                          삭제
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          className="text-gray-400 hover:text-blue-600 transition-colors"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          className="text-gray-400 hover:text-red-600 transition-colors"
+                          onClick={() => handleDelete(diary.id)}
+                        >
+                          <Trash className="w-4 h-4" />
                         </button>
                       </div>
+                    </div>
+                    <div className="flex items-center justify-between text-sm text-gray-500">
+                      <span>{new Date(diary.created_at).toLocaleDateString()}</span>
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        diary.is_public 
+                          ? 'bg-green-100 text-green-700' 
+                          : 'bg-gray-100 text-gray-700'
+                      }`}>
+                        {diary.is_public ? '공개' : '비공개'}
+                      </span>
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
+            )}
           </div>
 
-          {/* 오른쪽: 다른 사람들의 공개 일기 */}
-          <div className="bg-gray-800 rounded-lg shadow-md p-6 border border-gray-700">
-            <h2 className="text-xl font-semibold mb-4 text-white">다른 사람들의 일기</h2>
-            {publicDiaries.length === 0 ? (
-              <div className="text-gray-400">아직 공개된 일기가 없습니다.</div>
+          {/* 중앙: 팔로워 목록 */}
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <h2 className="text-xl font-semibold text-gray-800 mb-4">팔로잉</h2>
+            {following.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                아직 팔로우한 사용자가 없습니다.
+              </div>
             ) : (
-              <div className="space-y-4">
-                {publicDiaries.map((d) => (
-                  <div key={d.id} className="bg-blue-900/30 p-4 rounded border-l-4 border-blue-500 border border-gray-600">
-                    <div className="text-2xl mb-2">{d.emotion}</div>
-                    <div className="mb-3 whitespace-pre-line text-gray-200">{d.content}</div>
-                    <div className="flex justify-between items-center">
-                      <div className="text-xs text-gray-400">
-                        <div>{new Date(d.created_at).toLocaleString()}</div>
+              <div className="space-y-3">
+                {following.map((user) => (
+                  <div key={user.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                        <span className="text-purple-600 font-semibold">
+                          {user.nickname.charAt(0).toUpperCase()}
+                        </span>
                       </div>
+                      <div>
+                        <div className="font-medium text-gray-800">{user.nickname}</div>
+                        <div className="text-sm text-gray-500">{user.email}</div>
+                      </div>
+                    </div>
+                    <button
+                      className="text-red-600 hover:text-red-700 transition-colors"
+                      onClick={() => handleFollow(user.id, true)}
+                    >
+                      <UserMinus className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 오른쪽: 전체 일기 목록 */}
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-800">전체 꿈 일기</h2>
+              <div className="flex items-center space-x-2">
+                <select
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value as any)}
+                  className="border border-gray-300 rounded-lg px-3 py-1 text-sm"
+                >
+                  <option value="latest">최신순</option>
+                  <option value="likes">좋아요순</option>
+                  <option value="views">조회순</option>
+                  <option value="comments">댓글순</option>
+                </select>
+              </div>
+            </div>
+
+            {/* 검색 */}
+            <div className="mb-4">
+              <div className="flex space-x-2">
+                <input
+                  type="text"
+                  placeholder="꿈 일기 검색..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                />
+                <button
+                  onClick={handleSearch}
+                  className="bg-purple-600 text-white px-3 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+                >
+                  <Search className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {publicDiaries.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                공개된 꿈 일기가 없습니다.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {publicDiaries.map((diary) => (
+                  <div key={diary.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
+                       onClick={() => {
+                         setSelectedDiary(diary);
+                         setShowDiaryModal(true);
+                       }}>
+                    <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => handleLike(d.id, d.is_liked || false)}
-                          className={`flex items-center space-x-1 px-3 py-1 rounded-full text-sm transition-colors ${
-                            d.is_liked 
-                              ? 'bg-red-600 text-white hover:bg-red-700' 
-                              : 'bg-gray-600 text-gray-200 hover:bg-gray-500'
-                          }`}
-                          disabled={!session || likeLoading === d.id}
-                        >
-                          <span className="text-lg">
-                            {d.is_liked ? '❤️' : '🤍'}
+                        <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                          <span className="text-purple-600 font-semibold text-sm">
+                            {diary.user?.nickname?.charAt(0).toUpperCase()}
                           </span>
-                          <span>{d.like_count || 0}</span>
-                        </button>
+                        </div>
+                        <span className="font-medium text-gray-800">{diary.user?.nickname}</span>
                       </div>
+                      {diary.user?.id !== user?.id && (
+                        <button
+                          className="ml-1 px-2 py-1 text-xs border border-purple-200 rounded text-purple-600 hover:text-purple-800 hover:bg-purple-50 transition-colors"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            const isAlreadyFollowing = following.some(f => f.id === diary.user?.id);
+                            await handleFollow(diary.user!.id, isAlreadyFollowing);
+                            const followingData = await getFollowing({ user_id: session.user.id });
+                            setFollowing(followingData);
+                          }}
+                        >
+                          {following.some(f => f.id === diary.user?.id) ? "언팔로우" : "팔로우"}
+                        </button>
+                      )}
+                      <button className="text-gray-400 hover:text-purple-600 transition-colors">
+                        <Share2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <h3 className="font-medium text-gray-800 mb-2">{diary.title}</h3>
+                    <div className="flex items-center justify-between text-sm text-gray-500">
+                      <div className="flex items-center space-x-4">
+                        <span className="flex items-center space-x-1">
+                          <Eye className="w-4 h-4" />
+                          <span>{diary.views}</span>
+                        </span>
+                        <span className="flex items-center space-x-1">
+                          <Heart className="w-4 h-4" />
+                          <span>{diary.likes_count}</span>
+                        </span>
+                        <span className="flex items-center space-x-1">
+                          <MessageCircle className="w-4 h-4" />
+                          <span>{diary.comments_count}</span>
+                        </span>
+                      </div>
+                      <span>{new Date(diary.created_at).toLocaleDateString()}</span>
                     </div>
                   </div>
                 ))}
@@ -392,80 +412,406 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="text-center mt-8">
-          <button
-            className="text-sm text-gray-400 underline hover:text-gray-300"
-            onClick={async () => {
-              try {
-                await supabase.auth.signOut();
-              } catch (e) {}
-              setSession(null);
-              // Supabase 세션 토큰 강제 삭제
-              Object.keys(localStorage).forEach((key) => {
-                if (key.includes('supabase') || key.includes('sb-')) {
-                  localStorage.removeItem(key);
-                }
-              });
-              window.location.reload();
+        {/* 일기 작성 모달 */}
+        {showWriteModal && (
+          <WriteDiaryModal 
+            onClose={() => setShowWriteModal(false)}
+            onSuccess={async (newDiary) => {
+              setDiaries(prev => [newDiary, ...prev]);
+              if (session) {
+                const diaries = await getPublicDiaries({ user_id: session.user.id, filter });
+                setPublicDiaries(diaries);
+              }
+              setShowWriteModal(false);
             }}
-          >
-            로그아웃
+            session={session}
+          />
+        )}
+
+        {/* 일기 상세 모달 */}
+        {showDiaryModal && selectedDiary && (
+          <DiaryDetailModal
+            diary={selectedDiary}
+            onClose={() => {
+              setShowDiaryModal(false);
+              setSelectedDiary(null);
+            }}
+            session={session}
+            onLike={handleLike}
+          />
+        )}
+      </div>
+    </main>
+  );
+}
+
+// 일기 작성 모달 컴포넌트
+function WriteDiaryModal({ onClose, onSuccess, session }: {
+  onClose: () => void;
+  onSuccess: (diary: Diary) => void;
+  session: Session;
+}) {
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [isPublic, setIsPublic] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [aiGenerating, setAiGenerating] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || !content.trim()) return;
+    
+    setLoading(true);
+    setError("");
+    try {
+      const newDiary = await createDiary({
+        user_id: session.user.id,
+        title: title.trim(),
+        content: content.trim(),
+        is_public: isPublic,
+      });
+      
+      // AI 해석 생성 시작
+      if (isPublic) {
+        setAiGenerating(true);
+        try {
+          await generateAIInterpretation({
+            diary_id: newDiary.id,
+            content: content.trim()
+          });
+        } catch (aiError) {
+          console.error('AI 해석 생성 실패:', aiError);
+        } finally {
+          setAiGenerating(false);
+        }
+      }
+      
+      onSuccess(newDiary);
+    } catch (error: any) {
+      setError(error.message || "일기 저장 중 오류가 발생했습니다.");
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-800">꿈 일기 작성</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+            ✕
+          </button>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              제목 *
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              placeholder="꿈의 제목을 입력하세요"
+              required
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              꿈 내용 *
+            </label>
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 h-32 resize-none"
+              placeholder="꿈의 내용을 자세히 기록해보세요..."
+              required
+            />
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="isPublic"
+              checked={isPublic}
+              onChange={(e) => setIsPublic(e.target.checked)}
+              className="rounded"
+            />
+            <label htmlFor="isPublic" className="text-sm text-gray-700">
+              공개로 설정 {isPublic && "(AI 해몽/소설 자동 생성)"}
+            </label>
+          </div>
+          
+          {error && (
+            <div className="text-red-600 text-sm bg-red-50 p-3 rounded-lg border border-red-200">
+              {error}
+            </div>
+          )}
+          
+          {aiGenerating && (
+            <div className="text-purple-600 text-sm bg-purple-50 p-3 rounded-lg border border-purple-200">
+              🤖 AI가 꿈을 해석하고 소설을 생성하고 있습니다...
+            </div>
+          )}
+          
+          <div className="flex justify-end space-x-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              취소
+            </button>
+            <button
+              type="submit"
+              disabled={loading || aiGenerating}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+            >
+              {loading ? "저장 중..." : aiGenerating ? "AI 생성 중..." : "저장"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// 일기 상세 모달 컴포넌트
+function DiaryDetailModal({ diary, onClose, session, onLike }: {
+  diary: Diary;
+  onClose: () => void;
+  session: Session;
+  onLike: (diaryId: string, isLiked: boolean) => void;
+}) {
+  const [activeTab, setActiveTab] = useState<'original' | 'interpretation' | 'story'>('original');
+  const [isLiked, setIsLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(diary.likes_count);
+  const [comments, setComments] = useState<any[]>([]);
+  const [newComment, setNewComment] = useState("");
+  const [commentLoading, setCommentLoading] = useState(false);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+
+  // 댓글 로드
+  useEffect(() => {
+    const loadComments = async () => {
+      setCommentsLoading(true);
+      try {
+        const commentsData = await getComments({ diary_id: diary.id });
+        setComments(commentsData);
+      } catch (error) {
+        console.error('댓글 로드 실패:', error);
+      }
+      setCommentsLoading(false);
+    };
+    loadComments();
+  }, [diary.id]);
+
+  // 조회수 증가
+  useEffect(() => {
+    const updateViews = async () => {
+      await incrementViews({ diary_id: diary.id });
+      const updated = await getDiaryById({ diary_id: diary.id });
+      if (updated) {
+        setLikeCount(updated.likes_count);
+        // views, comments_count 등도 필요시 setState
+      }
+    };
+    updateViews();
+  }, [diary.id]);
+
+  const handleLike = () => {
+    onLike(diary.id, isLiked);
+    setIsLiked(!isLiked);
+    setLikeCount(isLiked ? likeCount - 1 : likeCount + 1);
+  };
+
+  const handleCommentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newComment.trim()) return;
+    
+    setCommentLoading(true);
+    try {
+      const newCommentData = await createComment({
+        diary_id: diary.id,
+        user_id: session.user.id,
+        content: newComment.trim()
+      });
+      setComments(prev => [...prev, newCommentData]);
+      setNewComment("");
+    } catch (error) {
+      console.error('댓글 작성 실패:', error);
+    }
+    setCommentLoading(false);
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    try {
+      await deleteComment({ comment_id: commentId, user_id: session.user.id });
+      setComments(prev => prev.filter(c => c.id !== commentId));
+    } catch (error) {
+      console.error('댓글 삭제 실패:', error);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+              <span className="text-purple-600 font-semibold">
+                {diary.user?.nickname?.charAt(0).toUpperCase()}
+              </span>
+            </div>
+            <div>
+              <div className="font-medium text-gray-800">{diary.user?.nickname}</div>
+              <div className="text-sm text-gray-500">{new Date(diary.created_at).toLocaleDateString()}</div>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+            ✕
+          </button>
+        </div>
+        
+        <h2 className="text-2xl font-bold text-gray-800 mb-4">{diary.title}</h2>
+        
+        {/* 탭 */}
+        <div className="flex border-b border-gray-200 mb-4">
+          {[
+            { key: 'original', label: '원문' },
+            { key: 'interpretation', label: '해몽' },
+            { key: 'story', label: '소설' }
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key as any)}
+              className={`px-4 py-2 font-medium ${
+                activeTab === tab.key
+                  ? 'text-purple-600 border-b-2 border-purple-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        
+        {/* 탭 내용 */}
+        <div className="mb-6">
+          {activeTab === 'original' && (
+            <div className="prose max-w-none">
+              <p className="text-gray-700 whitespace-pre-wrap">{diary.content}</p>
+            </div>
+          )}
+          {activeTab === 'interpretation' && (
+            <div className="prose max-w-none">
+              <p className="text-gray-700">
+                {diary.ai_interpretation.dream_interpretation || "AI 해몽이 아직 생성되지 않았습니다."}
+              </p>
+            </div>
+          )}
+          {activeTab === 'story' && (
+            <div className="prose max-w-none">
+              <p className="text-gray-700">
+                {diary.ai_interpretation.story || "AI 소설이 아직 생성되지 않았습니다."}
+              </p>
+            </div>
+          )}
+        </div>
+        
+        {/* 댓글 섹션 */}
+        <div className="border-t border-gray-200 pt-4">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">댓글 ({comments.length})</h3>
+          
+          {/* 댓글 작성 */}
+          <form onSubmit={handleCommentSubmit} className="mb-4">
+            <div className="flex space-x-2">
+              <input
+                type="text"
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                placeholder="댓글을 입력하세요..."
+                className="flex-1 border border-gray-300 rounded-lg px-3 py-2"
+                disabled={commentLoading}
+              />
+              <button
+                type="submit"
+                disabled={commentLoading || !newComment.trim()}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+              >
+                {commentLoading ? "작성 중..." : "작성"}
+              </button>
+            </div>
+          </form>
+          
+          {/* 댓글 목록 */}
+          {commentsLoading ? (
+            <div className="text-center py-4 text-gray-500">댓글을 불러오는 중...</div>
+          ) : comments.length === 0 ? (
+            <div className="text-center py-4 text-gray-500">아직 댓글이 없습니다.</div>
+          ) : (
+            <div className="space-y-3">
+              {comments.map((comment) => (
+                <div key={comment.id} className="border border-gray-200 rounded-lg p-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center">
+                        <span className="text-purple-600 font-semibold text-xs">
+                          {comment.user?.nickname?.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <span className="font-medium text-sm text-gray-800">{comment.user?.nickname}</span>
+                      <span className="text-xs text-gray-500">
+                        {new Date(comment.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                    {comment.user_id === session.user.id && (
+                      <button
+                        onClick={() => handleDeleteComment(comment.id)}
+                        className="text-red-500 hover:text-red-700 text-xs"
+                      >
+                        삭제
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-gray-700 text-sm">{comment.content}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        
+        {/* 하단 액션 */}
+        <div className="flex items-center justify-between pt-4 border-t border-gray-200 mt-4">
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={handleLike}
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                isLiked
+                  ? 'text-red-600 bg-red-50'
+                  : 'text-gray-600 hover:text-red-600'
+              }`}
+            >
+              <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
+              <span>{likeCount}</span>
+            </button>
+            <div className="flex items-center space-x-2 text-gray-500">
+              <Eye className="w-5 h-5" />
+              <span>{diary.views}</span>
+            </div>
+            <div className="flex items-center space-x-2 text-gray-500">
+              <MessageCircle className="w-5 h-5" />
+              <span>{diary.comments_count}</span>
+            </div>
+          </div>
+          <button className="text-gray-500 hover:text-gray-700">
+            <Share2 className="w-5 h-5" />
           </button>
         </div>
       </div>
-      {popupOpen && (
-        <div
-          style={{
-            position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-            background: 'rgba(10,12,20,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
-          }}
-          onClick={handleClosePopup}
-        >
-          {popupLoading ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }} onClick={e => e.stopPropagation()}>
-              <div style={{
-                width: 56, height: 56, border: '6px solid #23283a', borderTop: '6px solid #8b9dc3', borderRadius: '50%',
-                animation: 'spin 1s linear infinite', marginBottom: 18
-              }} />
-              <span style={{ color: '#b6c2e2', fontSize: 18, fontWeight: 500 }}>분석 중...</span>
-            </div>
-          ) : (
-            <div
-              style={{
-                background: '#181c24', color: '#e5e7eb', padding: 36, borderRadius: 18, minWidth: 340, maxWidth: '90vw',
-                boxShadow: '0 8px 32px #0008', textAlign: 'center', position: 'relative', fontFamily: 'inherit',
-                border: '1.5px solid #23283a'
-              }}
-              onClick={e => e.stopPropagation()}
-            >
-              <button
-                onClick={handleClosePopup}
-                style={{
-                  position: 'absolute', top: 18, right: 18, background: 'none', border: 'none', color: '#8b9dc3', fontSize: 20, cursor: 'pointer', fontWeight: 700, zIndex: 2, padding: 0, lineHeight: 1
-                }}
-                aria-label="닫기"
-              >
-                ×
-              </button>
-              <h3 style={{ fontSize: 22, fontWeight: 700, marginBottom: 18, color: '#b6c2e2', letterSpacing: '-0.5px' }}>감정 분석 결과</h3>
-              <div style={{ margin: '18px 0', color: '#e5e7eb', fontSize: 16 }}>
-                <b style={{ color: '#8b9dc3', fontWeight: 600 }}>원문:</b>
-                <div style={{ margin: '10px 0 18px', color: '#b6c2e2', fontSize: 15, wordBreak: 'break-all' }}>{popupContent}</div>
-                <b style={{ color: '#8b9dc3', fontWeight: 600 }}>분석:</b>
-                <div style={{ margin: '10px 0', minHeight: 40, color: '#f1f3f9', fontSize: 16, lineHeight: 1.7 }}>
-                  {popupAnalysis}
-                </div>
-              </div>
-            </div>
-          )}
-          <style>{`
-            @keyframes spin {
-              0% { transform: rotate(0deg); }
-              100% { transform: rotate(360deg); }
-            }
-          `}</style>
-        </div>
-      )}
-    </main>
+    </div>
   );
 }
