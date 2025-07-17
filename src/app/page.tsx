@@ -24,7 +24,8 @@ import {
   type User,
   generateAIInterpretation,
   incrementViews,
-  getDiaryById
+  getDiaryById,
+  updateDiary
 } from './diary-api';
 import { Heart, Eye, MessageCircle, Search, Plus, Edit, Trash, UserPlus, UserMinus, Share2 } from 'lucide-react';
 
@@ -43,6 +44,8 @@ export default function Home() {
   const [showDiaryModal, setShowDiaryModal] = useState(false);
   const [selectedDiary, setSelectedDiary] = useState<Diary | null>(null);
   const [activeTab, setActiveTab] = useState<'original' | 'interpretation' | 'story'>('original');
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editDiary, setEditDiary] = useState<Diary | null>(null);
 
   // 로그인 상태 관리
   useEffect(() => {
@@ -171,6 +174,11 @@ export default function Home() {
     try {
       await deleteDiary({ diary_id: diaryId, user_id: session?.user.id! });
       setDiaries(prev => prev.filter(diary => diary.id !== diaryId));
+      // 전체 일기 새로고침
+      if (session) {
+        const diaries = await getPublicDiaries({ user_id: session.user.id, filter });
+        setPublicDiaries(diaries);
+      }
     } catch (error) {
       setError("일기 삭제 중 오류가 발생했습니다.");
     }
@@ -232,7 +240,7 @@ export default function Home() {
                 </button>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-3 max-h-[400px] overflow-y-auto">
                 {diaries.map((diary) => (
                   <div key={diary.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                     <div className="flex items-center justify-between mb-2">
@@ -247,11 +255,17 @@ export default function Home() {
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        <button
-                          className="text-gray-400 hover:text-blue-600 transition-colors"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
+                        {diary.user?.id === user?.id && (
+                          <button
+                            className="text-gray-400 hover:text-blue-600 transition-colors"
+                            onClick={() => {
+                              setEditDiary(diary);
+                              setShowEditModal(true);
+                            }}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                        )}
                         <button
                           className="text-gray-400 hover:text-red-600 transition-colors"
                           onClick={() => handleDelete(diary.id)}
@@ -284,7 +298,7 @@ export default function Home() {
                 아직 팔로우한 사용자가 없습니다.
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-3 max-h-[400px] overflow-y-auto">
                 {following.map((user) => (
                   <div key={user.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
                     <div className="flex items-center space-x-3">
@@ -353,7 +367,7 @@ export default function Home() {
                 공개된 꿈 일기가 없습니다.
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-3 max-h-[400px] overflow-y-auto">
                 {publicDiaries.map((diary) => (
                   <div key={diary.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
                        onClick={() => {
@@ -368,21 +382,21 @@ export default function Home() {
                           </span>
                         </div>
                         <span className="font-medium text-gray-800">{diary.user?.nickname}</span>
+                        {diary.user?.id !== user?.id && (
+                          <button
+                            className="ml-1 px-2 py-1 text-xs border border-purple-200 rounded text-purple-600 hover:text-purple-800 hover:bg-purple-50 transition-colors"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              const isAlreadyFollowing = following.some(f => f.id === diary.user?.id);
+                              await handleFollow(diary.user!.id, isAlreadyFollowing);
+                              const followingData = await getFollowing({ user_id: session.user.id });
+                              setFollowing(followingData);
+                            }}
+                          >
+                            {following.some(f => f.id === diary.user?.id) ? "언팔로우" : "팔로우"}
+                          </button>
+                        )}
                       </div>
-                      {diary.user?.id !== user?.id && (
-                        <button
-                          className="ml-1 px-2 py-1 text-xs border border-purple-200 rounded text-purple-600 hover:text-purple-800 hover:bg-purple-50 transition-colors"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            const isAlreadyFollowing = following.some(f => f.id === diary.user?.id);
-                            await handleFollow(diary.user!.id, isAlreadyFollowing);
-                            const followingData = await getFollowing({ user_id: session.user.id });
-                            setFollowing(followingData);
-                          }}
-                        >
-                          {following.some(f => f.id === diary.user?.id) ? "언팔로우" : "팔로우"}
-                        </button>
-                      )}
                       <button className="text-gray-400 hover:text-purple-600 transition-colors">
                         <Share2 className="w-4 h-4" />
                       </button>
@@ -423,6 +437,26 @@ export default function Home() {
                 setPublicDiaries(diaries);
               }
               setShowWriteModal(false);
+            }}
+            session={session}
+          />
+        )}
+
+        {/* 일기 수정 모달 */}
+        {showEditModal && editDiary && (
+          <EditDiaryModal
+            diary={editDiary}
+            onClose={() => {
+              setShowEditModal(false);
+              setEditDiary(null);
+            }}
+            onSuccess={async (updatedDiary: Diary) => {
+              setDiaries(prev => prev.map(diary => diary.id === updatedDiary.id ? updatedDiary : diary));
+              if (session) {
+                const diaries = await getPublicDiaries({ user_id: session.user.id, filter });
+                setPublicDiaries(diaries);
+              }
+              setShowEditModal(false);
             }}
             session={session}
           />
@@ -473,18 +507,16 @@ function WriteDiaryModal({ onClose, onSuccess, session }: {
       });
       
       // AI 해석 생성 시작
-      if (isPublic) {
-        setAiGenerating(true);
-        try {
-          await generateAIInterpretation({
-            diary_id: newDiary.id,
-            content: content.trim()
-          });
-        } catch (aiError) {
-          console.error('AI 해석 생성 실패:', aiError);
-        } finally {
-          setAiGenerating(false);
-        }
+      setAiGenerating(true);
+      try {
+        await generateAIInterpretation({
+          diary_id: newDiary.id,
+          content: content.trim()
+        });
+      } catch (aiError) {
+        console.error('AI 해석 생성 실패:', aiError);
+      } finally {
+        setAiGenerating(false);
       }
       
       onSuccess(newDiary);
@@ -579,6 +611,83 @@ function WriteDiaryModal({ onClose, onSuccess, session }: {
   );
 }
 
+// 일기 수정 모달 컴포넌트
+function EditDiaryModal({ diary, onClose, onSuccess, session }: {
+  diary: Diary;
+  onClose: () => void;
+  onSuccess: (updatedDiary: Diary) => void;
+  session: Session;
+}) {
+  const [title, setTitle] = useState(diary.title);
+  const [content, setContent] = useState(diary.content);
+  const [isPublic, setIsPublic] = useState(diary.is_public);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [aiGenerating, setAiGenerating] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || !content.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updatedDiary = await updateDiary({
+        diary_id: diary.id,
+        user_id: session.user.id,
+        title: title.trim(),
+        content: content.trim(),
+        is_public: isPublic,
+      });
+      // AI 해석 생성 (공개/비공개 상관없이)
+      setAiGenerating(true);
+      try {
+        await generateAIInterpretation({
+          diary_id: diary.id,
+          content: content.trim()
+        });
+      } catch (aiError) {
+        console.error('AI 해석 생성 실패:', aiError);
+      } finally {
+        setAiGenerating(false);
+      }
+      onSuccess(updatedDiary);
+    } catch (error: any) {
+      setError(error.message || "일기 수정 중 오류가 발생했습니다.");
+    }
+    setLoading(false);
+  };
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-800">꿈 일기 수정</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">제목 *</label>
+            <input type="text" value={title} onChange={e => setTitle(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2" required />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">꿈 내용 *</label>
+            <textarea value={content} onChange={e => setContent(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 h-32 resize-none" required />
+          </div>
+          <div className="flex items-center space-x-2">
+            <input type="checkbox" id="isPublicEdit" checked={isPublic} onChange={e => setIsPublic(e.target.checked)} className="rounded" />
+            <label htmlFor="isPublicEdit" className="text-sm text-gray-700">공개로 설정</label>
+          </div>
+          {error && <div className="text-red-600 text-sm bg-red-50 p-3 rounded-lg border border-red-200">{error}</div>}
+          {aiGenerating && <div className="text-purple-600 text-sm bg-purple-50 p-3 rounded-lg border border-purple-200">🤖 AI가 꿈을 해석하고 소설을 생성하고 있습니다...</div>}
+          <div className="flex justify-end space-x-3">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
+            <button type="submit" disabled={loading || aiGenerating} className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50">{loading ? "저장 중..." : aiGenerating ? "AI 생성 중..." : "저장"}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // 일기 상세 모달 컴포넌트
 function DiaryDetailModal({ diary, onClose, session, onLike }: {
   diary: Diary;
@@ -611,15 +720,38 @@ function DiaryDetailModal({ diary, onClose, session, onLike }: {
 
   // 조회수 증가
   useEffect(() => {
+    // 내 일기는 조회수 증가시키지 않음
+    if (diary.user_id === session.user.id) return;
+    
+    // 조회한 일기 ID를 세션에 저장
+    const viewedDiaries = sessionStorage.getItem('viewedDiaries') 
+      ? JSON.parse(sessionStorage.getItem('viewedDiaries')!) 
+      : [];
+
+    // 이미 조회한 일기인지 확인
+    if (viewedDiaries.includes(diary.id)) {
+      return; // 이미 조회했으면 조회수 증가 안함
+    }
+
+    let isMounted = true;
     const updateViews = async () => {
+      if (!isMounted) return;
+      
+      // 조회수 증가 후 세션에 저장
       await incrementViews({ diary_id: diary.id });
+      viewedDiaries.push(diary.id);
+      sessionStorage.setItem('viewedDiaries', JSON.stringify(viewedDiaries));
+      
       const updated = await getDiaryById({ diary_id: diary.id });
-      if (updated) {
+      if (updated && isMounted) {
         setLikeCount(updated.likes_count);
-        // views, comments_count 등도 필요시 setState
       }
     };
     updateViews();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [diary.id]);
 
   const handleLike = () => {
