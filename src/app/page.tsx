@@ -42,7 +42,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [filter, setFilter] = useState<'latest' | 'likes' | 'views' | 'comments'>('latest');
+  const [filter, setFilter] = useState<'latest' | 'likes' | 'views' | 'comments' | 'following'>('latest');
   const [showWriteModal, setShowWriteModal] = useState(false);
   const [showDiaryModal, setShowDiaryModal] = useState(false);
   const [selectedDiary, setSelectedDiary] = useState<Diary | null>(null);
@@ -103,6 +103,23 @@ export default function Home() {
   useEffect(() => {
     if (!session) return;
     const fetchPublicDiaries = async () => {
+      if (filter === 'following') {
+        // 팔로잉 필터: 팔로우한 유저의 공개 일기만 보여줌
+        if (following.length === 0) {
+          setPublicDiaries([]);
+          return;
+        }
+        // 모든 팔로잉 유저의 공개 일기 합치기
+        let all: Diary[] = [];
+        for (const user of following) {
+          const diaries = await getPublicDiaries({ user_id: user.id, filter: 'latest' });
+          all = all.concat(diaries);
+        }
+        // 최신순 정렬
+        all.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        setPublicDiaries(all);
+        return;
+      }
       try {
         const diaries = await getPublicDiaries({ user_id: session.user.id, filter });
         setPublicDiaries(diaries);
@@ -111,7 +128,7 @@ export default function Home() {
       }
     };
     fetchPublicDiaries();
-  }, [session, filter]);
+  }, [session, filter, following]);
 
   // 팔로워/팔로잉 목록 불러오기
   useEffect(() => {
@@ -133,10 +150,52 @@ export default function Home() {
 
   // 검색 처리
   const handleSearch = async () => {
-    if (!searchQuery.trim() || !session) return;
+    if (!session) return;
+    if (!searchQuery.trim()) {
+      // 검색어가 공백이면 전체 공개 일기 목록(또는 팔로잉 목록)으로 초기화
+      if (filter === 'following') {
+        // 팔로잉 필터: 팔로우한 유저의 공개 일기만 보여줌
+        if (following.length === 0) {
+          setPublicDiaries([]);
+          return;
+        }
+        let all: Diary[] = [];
+        for (const user of following) {
+          const diaries = await getPublicDiaries({ user_id: user.id, filter: 'latest' });
+          all = all.concat(diaries);
+        }
+        all.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        setPublicDiaries(all);
+        return;
+      } else {
+        const diaries = await getPublicDiaries({ user_id: session.user.id, filter });
+        setPublicDiaries(diaries);
+        return;
+      }
+    }
     try {
-      const results = await searchDiaries({ query: searchQuery, user_id: session.user.id });
-      setPublicDiaries(results);
+      if (filter === 'following') {
+        // 팔로잉 필터: 팔로우한 유저의 공개 일기 중 검색어 포함된 것만
+        if (following.length === 0) {
+          setPublicDiaries([]);
+          return;
+        }
+        let all: Diary[] = [];
+        for (const user of following) {
+          const diaries = await getPublicDiaries({ user_id: user.id, filter: 'latest' });
+          all = all.concat(diaries);
+        }
+        // 검색어 포함된 것만 필터링
+        const filtered = all.filter(diary =>
+          diary.title.includes(searchQuery) || diary.content.includes(searchQuery)
+        );
+        filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        setPublicDiaries(filtered);
+        return;
+      } else {
+        const results = await searchDiaries({ query: searchQuery, user_id: session.user.id });
+        setPublicDiaries(results);
+      }
     } catch (error) {
       setError("검색 중 오류가 발생했습니다.");
     }
@@ -358,6 +417,7 @@ export default function Home() {
                   <option value="likes">좋아요순</option>
                   <option value="views">조회순</option>
                   <option value="comments">댓글순</option>
+                  <option value="following">팔로잉</option>
                 </select>
               </div>
             </div>
@@ -389,7 +449,7 @@ export default function Home() {
             ) : (
               <div className="space-y-3 max-h-[400px] overflow-y-auto">
                 {publicDiaries.map((diary) => (
-                  <div key={diary.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
+                  <div key={diary.id + '-' + diary.user_id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
                     onClick={() => {
                       setSelectedDiary(diary);
                       setShowDiaryModal(true);
