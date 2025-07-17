@@ -27,9 +27,10 @@ import {
   getDiaryById,
   updateDiary
 } from './diary-api';
-import { Heart, Eye, MessageCircle, Search, Plus, Edit, Trash, UserPlus, UserMinus, Share2 } from 'lucide-react';
+import { Heart, Eye, MessageCircle, Search, Plus, Edit, Trash, UserMinus, Share2 } from 'lucide-react';
 import { useRef } from "react";
 import { useRouter } from "next/navigation";
+import type { Comment } from './diary-api';
 
 export default function Home() {
   const [session, setSession] = useState<Session | null>(null);
@@ -174,8 +175,9 @@ export default function Home() {
   // 일기 삭제
   const handleDelete = async (diaryId: string) => {
     if (!confirm("정말로 이 일기를 삭제하시겠습니까?")) return;
+    if (!session?.user?.id) return; // user id 없으면 중단
     try {
-      await deleteDiary({ diary_id: diaryId, user_id: session?.user.id! });
+      await deleteDiary({ diary_id: diaryId, user_id: session.user.id });
       setDiaries(prev => prev.filter(diary => diary.id !== diaryId));
       // 전체 일기 새로고침
       if (session) {
@@ -746,7 +748,7 @@ function DiaryDetailModal({ diary, onClose, session, onLike, following, handleFo
   const [activeTab, setActiveTab] = useState<'original' | 'interpretation' | 'story'>('original');
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(diary.likes_count);
-  const [comments, setComments] = useState<any[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
   const [commentLoading, setCommentLoading] = useState(false);
   const [commentsLoading, setCommentsLoading] = useState(false);
@@ -854,9 +856,11 @@ function DiaryDetailModal({ diary, onClose, session, onLike, following, handleFo
                     className="ml-2 px-2 py-1 text-xs border border-purple-200 rounded text-purple-600 hover:text-purple-800 hover:bg-purple-50 transition-colors"
                     onClick={async () => {
                       const isAlreadyFollowing = following.some(f => f.id === diary.user?.id);
-                      await handleFollow(diary.user!.id, isAlreadyFollowing);
-                      const followingData = await getFollowing({ user_id: session.user.id });
-                      setFollowing(followingData);
+                      if (diary.user?.id) {
+                        await handleFollow(diary.user.id, isAlreadyFollowing);
+                        const followingData = await getFollowing({ user_id: session.user.id });
+                        setFollowing(followingData);
+                      }
                     }}
                   >
                     {following.some(f => f.id === diary.user?.id) ? "언팔로우" : "팔로우"}
