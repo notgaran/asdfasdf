@@ -924,7 +924,11 @@ function DiaryDetailModal({ diary, onClose, session, onLike, likedDiaryIds, setL
   const handleLike = () => {
     onLike(diary.id, isLiked);
     setIsLiked(!isLiked);
-    setLikeCount(isLiked ? likeCount - 1 : likeCount + 1);
+    // diaryData.likes_count도 즉시 반영
+    setDiaryData(prev => ({
+      ...prev,
+      likes_count: prev.likes_count + (isLiked ? -1 : 1)
+    }));
   };
 
   const handleCommentSubmit = async (e: React.FormEvent) => {
