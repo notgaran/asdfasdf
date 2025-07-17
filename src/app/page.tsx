@@ -3,12 +3,12 @@ import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
 import Login from "./login";
 import type { Session } from '@supabase/supabase-js';
-import { 
-  getDiaries, 
-  createDiary, 
-  deleteDiary, 
-  getPublicDiaries, 
-  likeDiary, 
+import {
+  getDiaries,
+  createDiary,
+  deleteDiary,
+  getPublicDiaries,
+  likeDiary,
   getDiaryLikes,
   getFollowers,
   getFollowing,
@@ -232,7 +232,7 @@ export default function Home() {
               <div className="text-center py-8 text-gray-500">
                 아직 기록된 꿈이 없습니다.
                 <br />
-                <button 
+                <button
                   className="text-purple-600 hover:text-purple-700 mt-2"
                   onClick={() => setShowWriteModal(true)}
                 >
@@ -276,11 +276,10 @@ export default function Home() {
                     </div>
                     <div className="flex items-center justify-between text-sm text-gray-500">
                       <span>{new Date(diary.created_at).toLocaleDateString()}</span>
-                      <span className={`px-2 py-1 rounded-full text-xs ${
-                        diary.is_public 
-                          ? 'bg-green-100 text-green-700' 
+                      <span className={`px-2 py-1 rounded-full text-xs ${diary.is_public
+                          ? 'bg-green-100 text-green-700'
                           : 'bg-gray-100 text-gray-700'
-                      }`}>
+                        }`}>
                         {diary.is_public ? '공개' : '비공개'}
                       </span>
                     </div>
@@ -370,10 +369,10 @@ export default function Home() {
               <div className="space-y-3 max-h-[400px] overflow-y-auto">
                 {publicDiaries.map((diary) => (
                   <div key={diary.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
-                       onClick={() => {
-                         setSelectedDiary(diary);
-                         setShowDiaryModal(true);
-                       }}>
+                    onClick={() => {
+                      setSelectedDiary(diary);
+                      setShowDiaryModal(true);
+                    }}>
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center space-x-2">
                         <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
@@ -428,7 +427,7 @@ export default function Home() {
 
         {/* 일기 작성 모달 */}
         {showWriteModal && (
-          <WriteDiaryModal 
+          <WriteDiaryModal
             onClose={() => setShowWriteModal(false)}
             onSuccess={async (newDiary) => {
               setDiaries(prev => [newDiary, ...prev]);
@@ -472,6 +471,9 @@ export default function Home() {
             }}
             session={session}
             onLike={handleLike}
+            following={following}
+            handleFollow={handleFollow}
+            setFollowing={setFollowing}
           />
         )}
       </div>
@@ -495,7 +497,7 @@ function WriteDiaryModal({ onClose, onSuccess, session }: {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !content.trim()) return;
-    
+
     setLoading(true);
     setError("");
     try {
@@ -505,7 +507,7 @@ function WriteDiaryModal({ onClose, onSuccess, session }: {
         content: content.trim(),
         is_public: isPublic,
       });
-      
+
       // AI 해석 생성 시작
       setAiGenerating(true);
       try {
@@ -518,7 +520,7 @@ function WriteDiaryModal({ onClose, onSuccess, session }: {
       } finally {
         setAiGenerating(false);
       }
-      
+
       onSuccess(newDiary);
     } catch (error: any) {
       setError(error.message || "일기 저장 중 오류가 발생했습니다.");
@@ -535,7 +537,7 @@ function WriteDiaryModal({ onClose, onSuccess, session }: {
             ✕
           </button>
         </div>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -550,7 +552,7 @@ function WriteDiaryModal({ onClose, onSuccess, session }: {
               required
             />
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               꿈 내용 *
@@ -563,7 +565,7 @@ function WriteDiaryModal({ onClose, onSuccess, session }: {
               required
             />
           </div>
-          
+
           <div className="flex items-center space-x-2">
             <input
               type="checkbox"
@@ -576,19 +578,19 @@ function WriteDiaryModal({ onClose, onSuccess, session }: {
               공개로 설정 {isPublic && "(AI 해몽/소설 자동 생성)"}
             </label>
           </div>
-          
+
           {error && (
             <div className="text-red-600 text-sm bg-red-50 p-3 rounded-lg border border-red-200">
               {error}
             </div>
           )}
-          
+
           {aiGenerating && (
             <div className="text-purple-600 text-sm bg-purple-50 p-3 rounded-lg border border-purple-200">
               🤖 AI가 꿈을 해석하고 소설을 생성하고 있습니다...
             </div>
           )}
-          
+
           <div className="flex justify-end space-x-3">
             <button
               type="button"
@@ -689,11 +691,14 @@ function EditDiaryModal({ diary, onClose, onSuccess, session }: {
 }
 
 // 일기 상세 모달 컴포넌트
-function DiaryDetailModal({ diary, onClose, session, onLike }: {
+function DiaryDetailModal({ diary, onClose, session, onLike, following, handleFollow, setFollowing }: {
   diary: Diary;
   onClose: () => void;
   session: Session;
   onLike: (diaryId: string, isLiked: boolean) => void;
+  following: User[];
+  handleFollow: (targetUserId: string, isFollowing: boolean) => Promise<void>;
+  setFollowing: React.Dispatch<React.SetStateAction<User[]>>;
 }) {
   const [activeTab, setActiveTab] = useState<'original' | 'interpretation' | 'story'>('original');
   const [isLiked, setIsLiked] = useState(false);
@@ -722,10 +727,10 @@ function DiaryDetailModal({ diary, onClose, session, onLike }: {
   useEffect(() => {
     // 내 일기는 조회수 증가시키지 않음
     if (diary.user_id === session.user.id) return;
-    
+
     // 조회한 일기 ID를 세션에 저장
-    const viewedDiaries = sessionStorage.getItem('viewedDiaries') 
-      ? JSON.parse(sessionStorage.getItem('viewedDiaries')!) 
+    const viewedDiaries = sessionStorage.getItem('viewedDiaries')
+      ? JSON.parse(sessionStorage.getItem('viewedDiaries')!)
       : [];
 
     // 이미 조회한 일기인지 확인
@@ -736,19 +741,19 @@ function DiaryDetailModal({ diary, onClose, session, onLike }: {
     let isMounted = true;
     const updateViews = async () => {
       if (!isMounted) return;
-      
+
       // 조회수 증가 후 세션에 저장
       await incrementViews({ diary_id: diary.id });
       viewedDiaries.push(diary.id);
       sessionStorage.setItem('viewedDiaries', JSON.stringify(viewedDiaries));
-      
+
       const updated = await getDiaryById({ diary_id: diary.id });
       if (updated && isMounted) {
         setLikeCount(updated.likes_count);
       }
     };
     updateViews();
-    
+
     return () => {
       isMounted = false;
     };
@@ -763,7 +768,7 @@ function DiaryDetailModal({ diary, onClose, session, onLike }: {
   const handleCommentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newComment.trim()) return;
-    
+
     setCommentLoading(true);
     try {
       const newCommentData = await createComment({
@@ -798,8 +803,24 @@ function DiaryDetailModal({ diary, onClose, session, onLike }: {
                 {diary.user?.nickname?.charAt(0).toUpperCase()}
               </span>
             </div>
+
             <div>
-              <div className="font-medium text-gray-800">{diary.user?.nickname}</div>
+              <div className="font-medium text-gray-800 flex items-center">
+                {diary.user?.nickname}
+                {diary.user?.id !== session.user.id && (
+                  <button
+                    className="ml-2 px-2 py-1 text-xs border border-purple-200 rounded text-purple-600 hover:text-purple-800 hover:bg-purple-50 transition-colors"
+                    onClick={async () => {
+                      const isAlreadyFollowing = following.some(f => f.id === diary.user?.id);
+                      await handleFollow(diary.user!.id, isAlreadyFollowing);
+                      const followingData = await getFollowing({ user_id: session.user.id });
+                      setFollowing(followingData);
+                    }}
+                  >
+                    {following.some(f => f.id === diary.user?.id) ? "언팔로우" : "팔로우"}
+                  </button>
+                )}
+              </div>
               <div className="text-sm text-gray-500">{new Date(diary.created_at).toLocaleDateString()}</div>
             </div>
           </div>
@@ -807,9 +828,9 @@ function DiaryDetailModal({ diary, onClose, session, onLike }: {
             ✕
           </button>
         </div>
-        
+
         <h2 className="text-2xl font-bold text-gray-800 mb-4">{diary.title}</h2>
-        
+
         {/* 탭 */}
         <div className="flex border-b border-gray-200 mb-4">
           {[
@@ -820,17 +841,16 @@ function DiaryDetailModal({ diary, onClose, session, onLike }: {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key as any)}
-              className={`px-4 py-2 font-medium ${
-                activeTab === tab.key
+              className={`px-4 py-2 font-medium ${activeTab === tab.key
                   ? 'text-purple-600 border-b-2 border-purple-600'
                   : 'text-gray-500 hover:text-gray-700'
-              }`}
+                }`}
             >
               {tab.label}
             </button>
           ))}
         </div>
-        
+
         {/* 탭 내용 */}
         <div className="mb-6">
           {activeTab === 'original' && (
@@ -853,11 +873,11 @@ function DiaryDetailModal({ diary, onClose, session, onLike }: {
             </div>
           )}
         </div>
-        
+
         {/* 댓글 섹션 */}
         <div className="border-t border-gray-200 pt-4">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">댓글 ({comments.length})</h3>
-          
+
           {/* 댓글 작성 */}
           <form onSubmit={handleCommentSubmit} className="mb-4">
             <div className="flex space-x-2">
@@ -878,7 +898,7 @@ function DiaryDetailModal({ diary, onClose, session, onLike }: {
               </button>
             </div>
           </form>
-          
+
           {/* 댓글 목록 */}
           {commentsLoading ? (
             <div className="text-center py-4 text-gray-500">댓글을 불러오는 중...</div>
@@ -915,17 +935,16 @@ function DiaryDetailModal({ diary, onClose, session, onLike }: {
             </div>
           )}
         </div>
-        
+
         {/* 하단 액션 */}
         <div className="flex items-center justify-between pt-4 border-t border-gray-200 mt-4">
           <div className="flex items-center space-x-4">
             <button
               onClick={handleLike}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-                isLiked
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${isLiked
                   ? 'text-red-600 bg-red-50'
                   : 'text-gray-600 hover:text-red-600'
-              }`}
+                }`}
             >
               <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
               <span>{likeCount}</span>
