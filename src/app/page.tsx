@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { supabase } from "./supabaseClient";
 import Login from "./login";
 import type { Session } from '@supabase/supabase-js';
@@ -28,7 +28,6 @@ import {
   updateDiary
 } from './diary-api';
 import { Heart, Eye, MessageCircle, Search, Plus, Edit, Trash, UserMinus, Share2 } from 'lucide-react';
-import { useRef } from "react";
 import { useRouter } from "next/navigation";
 import type { Comment } from './diary-api';
 
@@ -36,7 +35,7 @@ export default function Home() {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [diaries, setDiaries] = useState<Diary[]>([]);
-  const [publicDiaries, setPublicDiaries] = useState<Diary[]>([]);
+  const [allPublicDiaries, setAllPublicDiaries] = useState<Diary[]>([]);
   const [followers, setFollowers] = useState<User[]>([]);
   const [following, setFollowing] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
@@ -50,6 +49,9 @@ export default function Home() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editDiary, setEditDiary] = useState<Diary | null>(null);
   const router = useRouter();
+  const [likedDiaryIds, setLikedDiaryIds] = useState<string[]>([]);
+  // 팔로잉 유저별 팔로워/팔로잉 수 상태
+  const [followingStats, setFollowingStats] = useState<Record<string, { followers: number, following: number }>>({});
 
   // 로그인 상태 관리
   useEffect(() => {
@@ -99,36 +101,45 @@ export default function Home() {
     fetchDiaries();
   }, [session]);
 
-  // 공개 일기 목록 불러오기
+  // 공개 일기 전체를 한 번만 받아오기
   useEffect(() => {
     if (!session) return;
-    const fetchPublicDiaries = async () => {
-      if (filter === 'following') {
-        // 팔로잉 필터: 팔로우한 유저의 공개 일기만 보여줌
-        if (following.length === 0) {
-          setPublicDiaries([]);
-          return;
-        }
-        // 모든 팔로잉 유저의 공개 일기 합치기
-        let all: Diary[] = [];
-        for (const user of following) {
-          const diaries = await getPublicDiaries({ user_id: user.id, filter: 'latest' });
-          all = all.concat(diaries);
-        }
-        // 최신순 정렬
-        all.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        setPublicDiaries(all);
-        return;
-      }
+    const fetchAllPublicDiaries = async () => {
       try {
-        const diaries = await getPublicDiaries({ user_id: session.user.id, filter });
-        setPublicDiaries(diaries);
+        const diaries = await getPublicDiaries({ user_id: session.user.id, filter: 'latest' });
+        setAllPublicDiaries(diaries);
       } catch (error) {
-        setPublicDiaries([]);
+        setAllPublicDiaries([]);
       }
     };
-    fetchPublicDiaries();
-  }, [session, filter, following]);
+    fetchAllPublicDiaries();
+  }, [session]);
+
+  // publicDiaries는 useMemo로 필터/검색/정렬해서 보여줌
+  const publicDiaries = useMemo(() => {
+    let list = [...allPublicDiaries];
+    if (filter === 'following') {
+      const followingIds = following.map(f => f.id);
+      list = list.filter(d => followingIds.includes(d.user_id));
+    }
+    if (searchQuery.trim()) {
+      list = list.filter(d =>
+        d.title.includes(searchQuery) || d.content.includes(searchQuery)
+      );
+    }
+    // 정렬
+    if (filter === 'latest' || filter === 'following') {
+      list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    } else if (filter === 'likes') {
+      list.sort((a, b) => b.likes_count - a.likes_count);
+    } else if (filter === 'views') {
+      list.sort((a, b) => b.views - a.views);
+    } else if (filter === 'comments') {
+      list.sort((a, b) => b.comments_count - a.comments_count);
+    }
+    // id+user_id 조합으로 중복 제거
+    return Array.from(new Map(list.map(d => [d.id + '-' + d.user_id, d])).values());
+  }, [allPublicDiaries, filter, following, searchQuery]);
 
   // 팔로워/팔로잉 목록 불러오기
   useEffect(() => {
@@ -148,56 +159,53 @@ export default function Home() {
     loadFollowData();
   }, [session]);
 
-  // 검색 처리
-  const handleSearch = async () => {
+  // 로그인 후 내가 좋아요 누른 게시글 id 목록 가져오기
+  useEffect(() => {
     if (!session) return;
-    if (!searchQuery.trim()) {
-      // 검색어가 공백이면 전체 공개 일기 목록(또는 팔로잉 목록)으로 초기화
-      if (filter === 'following') {
-        // 팔로잉 필터: 팔로우한 유저의 공개 일기만 보여줌
-        if (following.length === 0) {
-          setPublicDiaries([]);
-          return;
-        }
-        let all: Diary[] = [];
-        for (const user of following) {
-          const diaries = await getPublicDiaries({ user_id: user.id, filter: 'latest' });
-          all = all.concat(diaries);
-        }
-        all.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        setPublicDiaries(all);
-        return;
-      } else {
-        const diaries = await getPublicDiaries({ user_id: session.user.id, filter });
-        setPublicDiaries(diaries);
-        return;
-      }
-    }
+    const fetchLikedDiaries = async () => {
+      // 전체 공개 일기 id만 추출
+      const ids = allPublicDiaries.map(d => d.id);
+      // 병렬로 getDiaryLikes 호출
+      const results = await Promise.all(
+        ids.map(id => getDiaryLikes({ diary_id: id, user_id: session.user.id }))
+      );
+      const likedIds = ids.filter((id, idx) => results[idx]?.is_liked);
+      setLikedDiaryIds(likedIds);
+    };
+    if (allPublicDiaries.length > 0) fetchLikedDiaries();
+  }, [session, allPublicDiaries]);
+
+  // 팔로잉 유저별 팔로워/팔로잉 수 가져오기
+  useEffect(() => {
+    if (following.length === 0) return;
+    const fetchStats = async () => {
+      const stats: Record<string, { followers: number, following: number }> = {};
+      await Promise.all(following.map(async (user) => {
+        const [f1, f2] = await Promise.all([
+          getFollowers({ user_id: user.id }),
+          getFollowing({ user_id: user.id })
+        ]);
+        stats[user.id] = { followers: f1.length, following: f2.length };
+      }));
+      setFollowingStats(stats);
+    };
+    fetchStats();
+  }, [following]);
+
+  // 검색 처리 (이제 프론트에서만 처리)
+  const handleSearch = () => {
+    // 상태만 바꿔주면 publicDiaries가 자동 갱신됨
+    setSearchQuery(searchQuery);
+  };
+
+  // 좋아요/삭제 등에서 allPublicDiaries 갱신 필요
+  const refreshAllPublicDiaries = async () => {
+    if (!session) return;
     try {
-      if (filter === 'following') {
-        // 팔로잉 필터: 팔로우한 유저의 공개 일기 중 검색어 포함된 것만
-        if (following.length === 0) {
-          setPublicDiaries([]);
-          return;
-        }
-        let all: Diary[] = [];
-        for (const user of following) {
-          const diaries = await getPublicDiaries({ user_id: user.id, filter: 'latest' });
-          all = all.concat(diaries);
-        }
-        // 검색어 포함된 것만 필터링
-        const filtered = all.filter(diary =>
-          diary.title.includes(searchQuery) || diary.content.includes(searchQuery)
-        );
-        filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        setPublicDiaries(filtered);
-        return;
-      } else {
-        const results = await searchDiaries({ query: searchQuery, user_id: session.user.id });
-        setPublicDiaries(results);
-      }
+      const diaries = await getPublicDiaries({ user_id: session.user.id, filter: 'latest' });
+      setAllPublicDiaries(diaries);
     } catch (error) {
-      setError("검색 중 오류가 발생했습니다.");
+      setAllPublicDiaries([]);
     }
   };
 
@@ -218,15 +226,21 @@ export default function Home() {
     }
   };
 
-  // 좋아요 처리
+  // 좋아요 처리 (optimistic update)
   const handleLike = async (diaryId: string, isLiked: boolean) => {
     if (!session) return;
+    // optimistic update
+    setLikedDiaryIds(prev =>
+      isLiked ? prev.filter(id => id !== diaryId) : [...prev, diaryId]
+    );
     try {
       await likeDiary({ diary_id: diaryId, user_id: session.user.id, like: !isLiked });
-      // 공개 일기 목록 새로고침
-      const diaries = await getPublicDiaries({ user_id: session.user.id, filter });
-      setPublicDiaries(diaries);
+      await refreshAllPublicDiaries();
     } catch (error) {
+      // 롤백
+      setLikedDiaryIds(prev =>
+        isLiked ? [...prev, diaryId] : prev.filter(id => id !== diaryId)
+      );
       setError("좋아요 처리 중 오류가 발생했습니다.");
     }
   };
@@ -234,15 +248,11 @@ export default function Home() {
   // 일기 삭제
   const handleDelete = async (diaryId: string) => {
     if (!confirm("정말로 이 일기를 삭제하시겠습니까?")) return;
-    if (!session?.user?.id) return; // user id 없으면 중단
+    if (!session?.user?.id) return;
     try {
       await deleteDiary({ diary_id: diaryId, user_id: session.user.id });
       setDiaries(prev => prev.filter(diary => diary.id !== diaryId));
-      // 전체 일기 새로고침
-      if (session) {
-        const diaries = await getPublicDiaries({ user_id: session.user.id, filter });
-        setPublicDiaries(diaries);
-      }
+      await refreshAllPublicDiaries();
     } catch (error) {
       setError("일기 삭제 중 오류가 발생했습니다.");
     }
@@ -281,7 +291,7 @@ export default function Home() {
                 <div className="font-semibold text-gray-800">{user?.nickname || '사용자'}</div>
                 <div className="text-sm text-gray-500">{user?.email}</div>
                 <div className="text-xs text-gray-400">
-                  팔로잉 {following.length} • 팔로워 {followers.length}
+                  팔로워 {followers.length} • 팔로잉 {following.length}
                 </div>
               </div>
               <button
@@ -355,6 +365,20 @@ export default function Home() {
                       </div>
                     </div>
                     <div className="flex items-center justify-between text-sm text-gray-500">
+                      <div className="flex items-center space-x-4">
+                        <span className="flex items-center space-x-1">
+                          <Eye className="w-4 h-4" />
+                          <span>{diary.views}</span>
+                        </span>
+                        <span className="flex items-center space-x-1">
+                          <Heart className="w-4 h-4" />
+                          <span>{diary.likes_count}</span>
+                        </span>
+                        <span className="flex items-center space-x-1">
+                          <MessageCircle className="w-4 h-4" />
+                          <span>{diary.comments_count}</span>
+                        </span>
+                      </div>
                       <span>{new Date(diary.created_at).toLocaleDateString()}</span>
                       <span className={`px-2 py-1 rounded-full text-xs ${diary.is_public
                           ? 'bg-green-100 text-green-700'
@@ -378,7 +402,8 @@ export default function Home() {
               </div>
             ) : (
               <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                {following.map((user) => (
+                {/* 팔로잉 목록 렌더링 시 이름(닉네임) 오름차순 정렬 */}
+                {[...following].sort((a, b) => a.nickname.localeCompare(b.nickname)).map((user) => (
                   <div key={user.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
                     <div className="flex items-center space-x-3">
                       <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
@@ -388,7 +413,9 @@ export default function Home() {
                       </div>
                       <div>
                         <div className="font-medium text-gray-800">{user.nickname}</div>
-                        <div className="text-sm text-gray-500">{user.email}</div>
+                        <div className="text-xs text-gray-500">
+                          팔로워 {followingStats[user.id]?.followers ?? '-'} • 팔로잉 {followingStats[user.id]?.following ?? '-'}
+                        </div>
                       </div>
                     </div>
                     <button
@@ -509,7 +536,15 @@ export default function Home() {
                           <span>{diary.views}</span>
                         </span>
                         <span className="flex items-center space-x-1">
-                          <Heart className="w-4 h-4" />
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              handleLike(diary.id, likedDiaryIds.includes(diary.id));
+                            }}
+                            className={`focus:outline-none ${likedDiaryIds.includes(diary.id) ? 'text-red-600' : 'text-gray-400 hover:text-red-600'}`}
+                          >
+                            <Heart className={`w-4 h-4 ${likedDiaryIds.includes(diary.id) ? 'fill-current' : ''}`} />
+                          </button>
                           <span>{diary.likes_count}</span>
                         </span>
                         <span className="flex items-center space-x-1">
@@ -532,10 +567,7 @@ export default function Home() {
             onClose={() => setShowWriteModal(false)}
             onSuccess={async (newDiary) => {
               setDiaries(prev => [newDiary, ...prev]);
-              if (session) {
-                const diaries = await getPublicDiaries({ user_id: session.user.id, filter });
-                setPublicDiaries(diaries);
-              }
+              await refreshAllPublicDiaries();
               setShowWriteModal(false);
             }}
             session={session}
@@ -552,10 +584,7 @@ export default function Home() {
             }}
             onSuccess={async (updatedDiary: Diary) => {
               setDiaries(prev => prev.map(diary => diary.id === updatedDiary.id ? updatedDiary : diary));
-              if (session) {
-                const diaries = await getPublicDiaries({ user_id: session.user.id, filter });
-                setPublicDiaries(diaries);
-              }
+              await refreshAllPublicDiaries();
               setShowEditModal(false);
               setEditDiary(null);
             }}
@@ -574,6 +603,8 @@ export default function Home() {
             }}
             session={session}
             onLike={handleLike}
+            likedDiaryIds={likedDiaryIds}
+            setLikedDiaryIds={setLikedDiaryIds}
             following={following}
             handleFollow={handleFollow}
             setFollowing={setFollowing}
@@ -632,7 +663,7 @@ function WriteDiaryModal({ onClose, onSuccess, session }: {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="fixed inset-0 bg-black bg-opacity-30 modal-backdrop flex items-center justify-center z-50" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-gray-800">꿈 일기 작성</h2>
@@ -678,7 +709,7 @@ function WriteDiaryModal({ onClose, onSuccess, session }: {
               className="rounded"
             />
             <label htmlFor="isPublic" className="text-sm text-gray-700">
-              공개로 설정 {isPublic && "(AI 해몽/소설 자동 생성)"}
+              공개로 설정
             </label>
           </div>
 
@@ -764,7 +795,7 @@ function EditDiaryModal({ diary, onClose, onSuccess, session }: {
     setLoading(false);
   };
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="fixed inset-0 bg-black bg-opacity-30 modal-backdrop flex items-center justify-center z-50" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-gray-800">꿈 일기 수정</h2>
@@ -796,11 +827,13 @@ function EditDiaryModal({ diary, onClose, onSuccess, session }: {
 }
 
 // 일기 상세 모달 컴포넌트
-function DiaryDetailModal({ diary, onClose, session, onLike, following, handleFollow, setFollowing }: {
+function DiaryDetailModal({ diary, onClose, session, onLike, likedDiaryIds, setLikedDiaryIds, following, handleFollow, setFollowing }: {
   diary: Diary;
   onClose: () => void;
   session: Session;
   onLike: (diaryId: string, isLiked: boolean) => void;
+  likedDiaryIds: string[];
+  setLikedDiaryIds: React.Dispatch<React.SetStateAction<string[]>>;
   following: User[];
   handleFollow: (targetUserId: string, isFollowing: boolean) => Promise<void>;
   setFollowing: React.Dispatch<React.SetStateAction<User[]>>;
@@ -813,6 +846,7 @@ function DiaryDetailModal({ diary, onClose, session, onLike, following, handleFo
   const [commentLoading, setCommentLoading] = useState(false);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const hasIncremented = useRef(false);
+  const [diaryData, setDiaryData] = useState(diary);
 
   // 댓글 로드
   useEffect(() => {
@@ -863,6 +897,30 @@ function DiaryDetailModal({ diary, onClose, session, onLike, following, handleFo
     return () => { mounted = false; };
   }, [diary.id, session.user.id]);
 
+  // 기존 diary 대신 diaryData로 렌더링
+  useEffect(() => { setDiaryData(diary); }, [diary]);
+
+  // AI 해몽/소설 polling
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    // 해몽/소설 탭이고, 아직 생성 안됐으면 polling 시작
+    if ((activeTab === 'interpretation' && !diaryData.ai_interpretation.dream_interpretation) ||
+        (activeTab === 'story' && !diaryData.ai_interpretation.story)) {
+      interval = setInterval(async () => {
+        const updated = await getDiaryById({ diary_id: diaryData.id });
+        if (updated) {
+          setDiaryData(updated);
+          // 생성 완료되면 polling 중단
+          if ((activeTab === 'interpretation' && updated.ai_interpretation.dream_interpretation) ||
+              (activeTab === 'story' && updated.ai_interpretation.story)) {
+            if (interval) clearInterval(interval);
+          }
+        }
+      }, 2000);
+    }
+    return () => { if (interval) clearInterval(interval); };
+  }, [activeTab, diaryData]);
+
   const handleLike = () => {
     onLike(diary.id, isLiked);
     setIsLiked(!isLiked);
@@ -898,7 +956,7 @@ function DiaryDetailModal({ diary, onClose, session, onLike, following, handleFo
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="fixed inset-0 bg-black bg-opacity-30 modal-backdrop flex items-center justify-center z-50" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="bg-white rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-3">
@@ -935,7 +993,7 @@ function DiaryDetailModal({ diary, onClose, session, onLike, following, handleFo
           </button>
         </div>
 
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">{diary.title}</h2>
+        <h2 className="text-2xl font-bold text-gray-800 mb-4">{diaryData.title}</h2>
 
         {/* 탭 */}
         <div className="flex border-b border-gray-200 mb-4">
@@ -961,20 +1019,20 @@ function DiaryDetailModal({ diary, onClose, session, onLike, following, handleFo
         <div className="mb-6">
           {activeTab === 'original' && (
             <div className="prose max-w-none">
-              <p className="text-gray-700 whitespace-pre-wrap">{diary.content}</p>
+              <p className="text-gray-700 whitespace-pre-wrap">{diaryData.content}</p>
             </div>
           )}
           {activeTab === 'interpretation' && (
             <div className="prose max-w-none">
               <p className="text-gray-700">
-                {diary.ai_interpretation.dream_interpretation || "AI 해몽이 아직 생성되지 않았습니다."}
+                {diaryData.ai_interpretation.dream_interpretation || "AI 해몽이 아직 생성되지 않았습니다."}
               </p>
             </div>
           )}
           {activeTab === 'story' && (
             <div className="prose max-w-none">
               <p className="text-gray-700">
-                {diary.ai_interpretation.story || "AI 소설이 아직 생성되지 않았습니다."}
+                {diaryData.ai_interpretation.story || "AI 소설이 아직 생성되지 않았습니다."}
               </p>
             </div>
           )}
@@ -1053,15 +1111,15 @@ function DiaryDetailModal({ diary, onClose, session, onLike, following, handleFo
                 }`}
             >
               <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
-              <span>{likeCount}</span>
+              <span>{diaryData.likes_count}</span>
             </button>
             <div className="flex items-center space-x-2 text-gray-500">
               <Eye className="w-5 h-5" />
-              <span>{diary.views}</span>
+              <span>{diaryData.views}</span>
             </div>
             <div className="flex items-center space-x-2 text-gray-500">
               <MessageCircle className="w-5 h-5" />
-              <span>{diary.comments_count}</span>
+              <span>{diaryData.comments_count}</span>
             </div>
           </div>
           <button

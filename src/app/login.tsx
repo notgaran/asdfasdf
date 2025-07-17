@@ -29,8 +29,6 @@ export default function Login() {
           }
         }
       });
-      console.log("Signup result:", result); // 디버깅용 로그
-      
       // 회원가입 시도 시 무조건 이메일 인증 안내
       if (result.data.user) {
         setShowVerificationMessage(true);
@@ -40,8 +38,6 @@ export default function Login() {
       }
     } else {
       result = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-      console.log("Login result:", result); // 디버깅용 로그
-      
       if (result.error) {
         // 로그인 오류 메시지 한국어로 변환
         if (result.error.message.includes("Invalid login credentials")) {
