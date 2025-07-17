@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "디시인사이드아웃",
+  title: "드림인사이드",
   description: "내가 만듬.",
 };
 
