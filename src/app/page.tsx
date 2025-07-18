@@ -280,64 +280,67 @@ export default function Home() {
     <main className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 text-gray-800">
       <div className="max-w-7xl mx-auto p-4">
         {/* 헤더 */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <div className="flex items-center justify-between">
+        <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 mb-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
             <div>
-              <h1 className="text-3xl font-bold text-purple-600">DreamInside</h1>
-              <p className="text-gray-600">꿈을 기록하고 AI와 함께 해석해보세요</p>
+              <h1 className="text-2xl md:text-3xl font-bold text-purple-600">DreamInside</h1>
+              <p className="text-sm md:text-base text-gray-600">꿈을 기록하고 AI와 함께 해석해보세요</p>
             </div>
-            <div className="flex items-center space-x-4">
-              <div className="text-right">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
+              <div className="text-left sm:text-right">
                 <div className="font-semibold text-gray-800">{user?.nickname || '사용자'}</div>
-                <div className="text-sm text-gray-500">{user?.email}</div>
+                <div className="text-xs sm:text-sm text-gray-500">{user?.email}</div>
                 <div className="text-xs text-gray-400">
                   팔로워 {followers.length} • 팔로잉 {following.length}
                 </div>
               </div>
-              <button
-                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
-                onClick={() => setShowWriteModal(true)}
-              >
-                <Plus className="w-4 h-4 inline mr-2" />
-                꿈 기록하기
-              </button>
-              <button
-                className="text-gray-500 hover:text-gray-700 transition-colors"
-                onClick={async () => { await supabase.auth.signOut(); }}
-              >
-                로그아웃
-              </button>
+              <div className="flex space-x-2">
+                <button
+                  className="bg-purple-600 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg hover:bg-purple-700 transition-colors text-sm md:text-base"
+                  onClick={() => setShowWriteModal(true)}
+                >
+                  <Plus className="w-4 h-4 inline mr-1 md:mr-2" />
+                  <span className="hidden sm:inline">꿈 기록하기</span>
+                  <span className="sm:hidden">기록</span>
+                </button>
+                <button
+                  className="text-gray-500 hover:text-gray-700 transition-colors px-2 py-2 text-sm"
+                  onClick={async () => { await supabase.auth.signOut(); }}
+                >
+                  로그아웃
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
         {/* 3단 레이아웃 */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
           {/* 왼쪽: 내 일기 목록 */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">내 꿈 일기</h2>
+          <div className="bg-white rounded-lg shadow-sm p-4 md:p-6">
+            <h2 className="text-lg md:text-xl font-semibold text-gray-800 mb-4">내 꿈 일기</h2>
             {loading ? (
               <div className="text-center py-8 text-gray-500">로딩 중...</div>
             ) : diaries.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-gray-500 text-sm md:text-base">
                 아직 기록된 꿈이 없습니다.
                 <br />
                 <button
-                  className="text-purple-600 hover:text-purple-700 mt-2"
+                  className="text-purple-600 hover:text-purple-700 mt-2 text-sm md:text-base"
                   onClick={() => setShowWriteModal(true)}
                 >
                   첫 꿈을 기록해보세요
                 </button>
               </div>
             ) : (
-              <div className="space-y-3 max-h-[400px] overflow-y-auto">
+              <div className="space-y-3 max-h-[300px] md:max-h-[400px] overflow-y-auto">
                 {diaries.map((diary) => (
-                  <div key={diary.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                  <div key={diary.id} className="border border-gray-200 rounded-lg p-3 md:p-4 hover:shadow-md transition-shadow">
                     <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-medium text-gray-800 truncate">{diary.title}</h3>
-                      <div className="flex items-center space-x-2">
+                      <h3 className="font-medium text-gray-800 truncate text-sm md:text-base">{diary.title}</h3>
+                      <div className="flex items-center space-x-1 md:space-x-2">
                         <button
-                          className="text-gray-400 hover:text-purple-600 transition-colors"
+                          className="text-gray-400 hover:text-purple-600 transition-colors p-1"
                           onClick={() => {
                             setSelectedDiary(diary);
                             setShowDiaryModal(true);
@@ -347,7 +350,7 @@ export default function Home() {
                         </button>
                         {diary.user?.id === user?.id && (
                           <button
-                            className="text-gray-400 hover:text-blue-600 transition-colors"
+                            className="text-gray-400 hover:text-blue-600 transition-colors p-1"
                             onClick={() => {
                               setEditDiary(diary);
                               setShowEditModal(true);
@@ -357,35 +360,37 @@ export default function Home() {
                           </button>
                         )}
                         <button
-                          className="text-gray-400 hover:text-red-600 transition-colors"
+                          className="text-gray-400 hover:text-red-600 transition-colors p-1"
                           onClick={() => handleDelete(diary.id)}
                         >
                           <Trash className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between text-sm text-gray-500">
-                      <div className="flex items-center space-x-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-xs md:text-sm text-gray-500 space-y-1 sm:space-y-0">
+                      <div className="flex items-center space-x-3 md:space-x-4">
                         <span className="flex items-center space-x-1">
-                          <Eye className="w-4 h-4" />
+                          <Eye className="w-3 h-3 md:w-4 md:h-4" />
                           <span>{diary.views}</span>
                         </span>
                         <span className="flex items-center space-x-1">
-                          <Heart className="w-4 h-4" />
+                          <Heart className="w-3 h-3 md:w-4 md:h-4" />
                           <span>{diary.likes_count}</span>
                         </span>
                         <span className="flex items-center space-x-1">
-                          <MessageCircle className="w-4 h-4" />
+                          <MessageCircle className="w-3 h-3 md:w-4 md:h-4" />
                           <span>{diary.comments_count}</span>
                         </span>
                       </div>
-                      <span>{new Date(diary.created_at).toLocaleDateString()}</span>
-                      <span className={`px-2 py-1 rounded-full text-xs ${diary.is_public
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-gray-100 text-gray-700'
-                        }`}>
-                        {diary.is_public ? '공개' : '비공개'}
-                      </span>
+                      <div className="flex items-center justify-between sm:justify-end space-x-2">
+                        <span>{new Date(diary.created_at).toLocaleDateString()}</span>
+                        <span className={`px-2 py-1 rounded-full text-xs ${diary.is_public
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-gray-100 text-gray-700'
+                          }`}>
+                          {diary.is_public ? '공개' : '비공개'}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -394,32 +399,32 @@ export default function Home() {
           </div>
 
           {/* 중앙: 팔로워 목록 */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">팔로잉</h2>
+          <div className="bg-white rounded-lg shadow-sm p-4 md:p-6">
+            <h2 className="text-lg md:text-xl font-semibold text-gray-800 mb-4">팔로잉</h2>
             {following.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-gray-500 text-sm md:text-base">
                 아직 팔로우한 사용자가 없습니다.
               </div>
             ) : (
-              <div className="space-y-3 max-h-[400px] overflow-y-auto">
+              <div className="space-y-3 max-h-[300px] md:max-h-[400px] overflow-y-auto">
                 {/* 팔로잉 목록 렌더링 시 이름(닉네임) 오름차순 정렬 */}
                 {[...following].sort((a, b) => a.nickname.localeCompare(b.nickname)).map((user) => (
                   <div key={user.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
                     <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
-                        <span className="text-purple-600 font-semibold">
+                      <div className="w-8 h-8 md:w-10 md:h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                        <span className="text-purple-600 font-semibold text-sm md:text-base">
                           {user.nickname.charAt(0).toUpperCase()}
                         </span>
                       </div>
                       <div>
-                        <div className="font-medium text-gray-800">{user.nickname}</div>
+                        <div className="font-medium text-gray-800 text-sm md:text-base">{user.nickname}</div>
                         <div className="text-xs text-gray-500">
                           팔로워 {followingStats[user.id]?.followers ?? '-'} • 팔로잉 {followingStats[user.id]?.following ?? '-'}
                         </div>
                       </div>
                     </div>
                     <button
-                      className="text-red-600 hover:text-red-700 transition-colors"
+                      className="text-red-600 hover:text-red-700 transition-colors p-1"
                       onClick={() => handleFollow(user.id, true)}
                     >
                       <UserMinus className="w-4 h-4" />
@@ -431,14 +436,14 @@ export default function Home() {
           </div>
 
           {/* 오른쪽: 전체 일기 목록 */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-gray-800">전체 꿈 일기</h2>
+          <div className="bg-white rounded-lg shadow-sm p-4 md:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 space-y-2 sm:space-y-0">
+              <h2 className="text-lg md:text-xl font-semibold text-gray-800">전체 꿈 일기</h2>
               <div className="flex items-center space-x-2">
                 <select
                   value={filter}
                   onChange={(e) => setFilter(e.target.value as any)}
-                  className="border border-gray-300 rounded-lg px-3 py-1 text-sm"
+                  className="border border-gray-300 rounded-lg px-2 py-1 text-xs md:text-sm"
                 >
                   <option value="latest">최신순</option>
                   <option value="likes">좋아요순</option>
@@ -457,12 +462,12 @@ export default function Home() {
                   placeholder="꿈 일기 검색..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  className="flex-1 border border-gray-300 rounded-lg px-2 py-2 text-xs md:text-sm"
                   onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                 />
                 <button
                   onClick={handleSearch}
-                  className="bg-purple-600 text-white px-3 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+                  className="bg-purple-600 text-white px-2 py-2 rounded-lg hover:bg-purple-700 transition-colors"
                 >
                   <Search className="w-4 h-4" />
                 </button>
@@ -470,13 +475,13 @@ export default function Home() {
             </div>
 
             {publicDiaries.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-gray-500 text-sm md:text-base">
                 공개된 꿈 일기가 없습니다.
               </div>
             ) : (
-              <div className="space-y-3 max-h-[400px] overflow-y-auto">
+              <div className="space-y-3 max-h-[300px] md:max-h-[400px] overflow-y-auto">
                 {publicDiaries.map((diary) => (
-                  <div key={diary.id + '-' + diary.user_id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
+                  <div key={diary.id + '-' + diary.user_id} className="border border-gray-200 rounded-lg p-3 md:p-4 hover:shadow-md transition-shadow cursor-pointer"
                     onClick={() => {
                       setSelectedDiary(diary);
                       setShowDiaryModal(true);
@@ -484,15 +489,15 @@ export default function Home() {
                     }}>
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center space-x-2">
-                        <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                          <span className="text-purple-600 font-semibold text-sm">
+                        <div className="w-6 h-6 md:w-8 md:h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                          <span className="text-purple-600 font-semibold text-xs md:text-sm">
                             {diary.user?.nickname?.charAt(0).toUpperCase()}
                           </span>
                         </div>
-                        <span className="font-medium text-gray-800">{diary.user?.nickname}</span>
+                        <span className="font-medium text-gray-800 text-sm md:text-base">{diary.user?.nickname}</span>
                         {diary.user?.id !== user?.id && (
                           <button
-                            className="ml-1 px-2 py-1 text-xs border border-purple-200 rounded text-purple-600 hover:text-purple-800 hover:bg-purple-50 transition-colors"
+                            className="ml-1 px-1 py-1 text-xs border border-purple-200 rounded text-purple-600 hover:text-purple-800 hover:bg-purple-50 transition-colors"
                             onClick={async (e) => {
                               e.stopPropagation();
                               const isAlreadyFollowing = following.some(f => f.id === diary.user?.id);
@@ -506,7 +511,7 @@ export default function Home() {
                         )}
                       </div>
                       <button
-                        className="text-gray-400 hover:text-purple-600 transition-colors"
+                        className="text-gray-400 hover:text-purple-600 transition-colors p-1"
                         onClick={async (e) => {
                           e.stopPropagation();
                           const url = `${window.location.origin}?diary=${diary.id}`;
@@ -528,11 +533,11 @@ export default function Home() {
                         <Share2 className="w-4 h-4" />
                       </button>
                     </div>
-                    <h3 className="font-medium text-gray-800 mb-2">{diary.title}</h3>
-                    <div className="flex items-center justify-between text-sm text-gray-500">
-                      <div className="flex items-center space-x-4">
+                    <h3 className="font-medium text-gray-800 mb-2 text-sm md:text-base">{diary.title}</h3>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-xs md:text-sm text-gray-500 space-y-1 sm:space-y-0">
+                      <div className="flex items-center space-x-3 md:space-x-4">
                         <span className="flex items-center space-x-1">
-                          <Eye className="w-4 h-4" />
+                          <Eye className="w-3 h-3 md:w-4 md:h-4" />
                           <span>{diary.views}</span>
                         </span>
                         <span className="flex items-center space-x-1">
@@ -543,12 +548,12 @@ export default function Home() {
                             }}
                             className={`focus:outline-none ${likedDiaryIds.includes(diary.id) ? 'text-red-600' : 'text-gray-400 hover:text-red-600'}`}
                           >
-                            <Heart className={`w-4 h-4 ${likedDiaryIds.includes(diary.id) ? 'fill-current' : ''}`} />
+                            <Heart className={`w-3 h-3 md:w-4 md:h-4 ${likedDiaryIds.includes(diary.id) ? 'fill-current' : ''}`} />
                           </button>
                           <span>{diary.likes_count}</span>
                         </span>
                         <span className="flex items-center space-x-1">
-                          <MessageCircle className="w-4 h-4" />
+                          <MessageCircle className="w-3 h-3 md:w-4 md:h-4" />
                           <span>{diary.comments_count}</span>
                         </span>
                       </div>
@@ -663,11 +668,11 @@ function WriteDiaryModal({ onClose, onSuccess, session }: {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-30 modal-backdrop flex items-center justify-center z-50" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black bg-opacity-30 modal-backdrop flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-lg p-4 md:p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-800">꿈 일기 작성</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+          <h2 className="text-lg md:text-xl font-semibold text-gray-800">꿈 일기 작성</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 p-1">
             ✕
           </button>
         </div>
@@ -681,7 +686,7 @@ function WriteDiaryModal({ onClose, onSuccess, session }: {
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm md:text-base"
               placeholder="꿈의 제목을 입력하세요"
               required
             />
@@ -694,7 +699,7 @@ function WriteDiaryModal({ onClose, onSuccess, session }: {
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 h-32 resize-none"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 h-24 md:h-32 resize-none text-sm md:text-base"
               placeholder="꿈의 내용을 자세히 기록해보세요..."
               required
             />
@@ -725,18 +730,18 @@ function WriteDiaryModal({ onClose, onSuccess, session }: {
             </div>
           )}
 
-          <div className="flex justify-end space-x-3">
+          <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm md:text-base"
             >
               취소
             </button>
             <button
               type="submit"
               disabled={loading || aiGenerating}
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm md:text-base"
             >
               {loading ? "저장 중..." : aiGenerating ? "AI 생성 중..." : "저장"}
             </button>
@@ -795,20 +800,20 @@ function EditDiaryModal({ diary, onClose, onSuccess, session }: {
     setLoading(false);
   };
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-30 modal-backdrop flex items-center justify-center z-50" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black bg-opacity-30 modal-backdrop flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-lg p-4 md:p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-800">꿈 일기 수정</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
+          <h2 className="text-lg md:text-xl font-semibold text-gray-800">꿈 일기 수정</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 p-1">✕</button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">제목 *</label>
-            <input type="text" value={title} onChange={e => setTitle(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2" required />
+            <input type="text" value={title} onChange={e => setTitle(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm md:text-base" required />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">꿈 내용 *</label>
-            <textarea value={content} onChange={e => setContent(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 h-32 resize-none" required />
+            <textarea value={content} onChange={e => setContent(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 h-24 md:h-32 resize-none text-sm md:text-base" required />
           </div>
           <div className="flex items-center space-x-2">
             <input type="checkbox" id="isPublicEdit" checked={isPublic} onChange={e => setIsPublic(e.target.checked)} className="rounded" />
@@ -816,9 +821,9 @@ function EditDiaryModal({ diary, onClose, onSuccess, session }: {
           </div>
           {error && <div className="text-red-600 text-sm bg-red-50 p-3 rounded-lg border border-red-200">{error}</div>}
           {aiGenerating && <div className="text-purple-600 text-sm bg-purple-50 p-3 rounded-lg border border-purple-200">🤖 AI가 꿈을 해석하고 소설을 생성하고 있습니다...</div>}
-          <div className="flex justify-end space-x-3">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
-            <button type="submit" disabled={loading || aiGenerating} className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50">{loading ? "저장 중..." : aiGenerating ? "AI 생성 중..." : "저장"}</button>
+          <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm md:text-base">취소</button>
+            <button type="submit" disabled={loading || aiGenerating} className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm md:text-base">{loading ? "저장 중..." : aiGenerating ? "AI 생성 중..." : "저장"}</button>
           </div>
         </form>
       </div>
@@ -960,22 +965,22 @@ function DiaryDetailModal({ diary, onClose, session, onLike, likedDiaryIds, setL
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-30 modal-backdrop flex items-center justify-center z-50" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-white rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black bg-opacity-30 modal-backdrop flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-lg p-4 md:p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
-              <span className="text-purple-600 font-semibold">
+          <div className="flex items-center space-x-2 md:space-x-3">
+            <div className="w-8 h-8 md:w-10 md:h-10 bg-purple-100 rounded-full flex items-center justify-center">
+              <span className="text-purple-600 font-semibold text-sm md:text-base">
                 {diary.user?.nickname?.charAt(0).toUpperCase()}
               </span>
             </div>
 
             <div>
-              <div className="font-medium text-gray-800 flex items-center">
-                {diary.user?.nickname}
+              <div className="font-medium text-gray-800 flex flex-col sm:flex-row sm:items-center space-y-1 sm:space-y-0">
+                <span className="text-sm md:text-base">{diary.user?.nickname}</span>
                 {diary.user?.id !== session.user.id && (
                   <button
-                    className="ml-2 px-2 py-1 text-xs border border-purple-200 rounded text-purple-600 hover:text-purple-800 hover:bg-purple-50 transition-colors"
+                    className="px-2 py-1 text-xs border border-purple-200 rounded text-purple-600 hover:text-purple-800 hover:bg-purple-50 transition-colors"
                     onClick={async () => {
                       const isAlreadyFollowing = following.some(f => f.id === diary.user?.id);
                       if (diary.user?.id) {
@@ -989,15 +994,15 @@ function DiaryDetailModal({ diary, onClose, session, onLike, likedDiaryIds, setL
                   </button>
                 )}
               </div>
-              <div className="text-sm text-gray-500">{new Date(diary.created_at).toLocaleDateString()}</div>
+              <div className="text-xs md:text-sm text-gray-500">{new Date(diary.created_at).toLocaleDateString()}</div>
             </div>
           </div>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 p-1">
             ✕
           </button>
         </div>
 
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">{diaryData.title}</h2>
+        <h2 className="text-lg md:text-2xl font-bold text-gray-800 mb-4">{diaryData.title}</h2>
 
         {/* 탭 */}
         <div className="flex border-b border-gray-200 mb-4">
@@ -1009,7 +1014,7 @@ function DiaryDetailModal({ diary, onClose, session, onLike, likedDiaryIds, setL
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key as any)}
-              className={`px-4 py-2 font-medium ${activeTab === tab.key
+              className={`px-2 md:px-4 py-2 font-medium text-sm md:text-base ${activeTab === tab.key
                   ? 'text-purple-600 border-b-2 border-purple-600'
                   : 'text-gray-500 hover:text-gray-700'
                 }`}
@@ -1023,19 +1028,19 @@ function DiaryDetailModal({ diary, onClose, session, onLike, likedDiaryIds, setL
         <div className="mb-6">
           {activeTab === 'original' && (
             <div className="prose max-w-none">
-              <p className="text-gray-700 whitespace-pre-wrap">{diaryData.content}</p>
+              <p className="text-gray-700 whitespace-pre-wrap text-sm md:text-base">{diaryData.content}</p>
             </div>
           )}
           {activeTab === 'interpretation' && (
             <div className="prose max-w-none">
-              <p className="text-gray-700">
+              <p className="text-gray-700 text-sm md:text-base">
                 {diaryData.ai_interpretation.dream_interpretation || "AI 해몽이 아직 생성되지 않았습니다."}
               </p>
             </div>
           )}
           {activeTab === 'story' && (
             <div className="prose max-w-none">
-              <p className="text-gray-700">
+              <p className="text-gray-700 text-sm md:text-base">
                 {diaryData.ai_interpretation.story || "AI 소설이 아직 생성되지 않았습니다."}
               </p>
             </div>
@@ -1044,23 +1049,23 @@ function DiaryDetailModal({ diary, onClose, session, onLike, likedDiaryIds, setL
 
         {/* 댓글 섹션 */}
         <div className="border-t border-gray-200 pt-4">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">댓글 ({comments.length})</h3>
+          <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-4">댓글 ({comments.length})</h3>
 
           {/* 댓글 작성 */}
           <form onSubmit={handleCommentSubmit} className="mb-4">
-            <div className="flex space-x-2">
+            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
               <input
                 type="text"
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
                 placeholder="댓글을 입력하세요..."
-                className="flex-1 border border-gray-300 rounded-lg px-3 py-2"
+                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm md:text-base"
                 disabled={commentLoading}
               />
               <button
                 type="submit"
                 disabled={commentLoading || !newComment.trim()}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm md:text-base"
               >
                 {commentLoading ? "작성 중..." : "작성"}
               </button>
@@ -1069,9 +1074,9 @@ function DiaryDetailModal({ diary, onClose, session, onLike, likedDiaryIds, setL
 
           {/* 댓글 목록 - 스크롤 */}
           {commentsLoading ? (
-            <div className="text-center py-4 text-gray-500">댓글을 불러오는 중...</div>
+            <div className="text-center py-4 text-gray-500 text-sm md:text-base">댓글을 불러오는 중...</div>
           ) : comments.length === 0 ? (
-            <div className="text-center py-4 text-gray-500">아직 댓글이 없습니다.</div>
+            <div className="text-center py-4 text-gray-500 text-sm md:text-base">아직 댓글이 없습니다.</div>
           ) : (
             <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
               {comments.map((comment) => (
@@ -1105,29 +1110,29 @@ function DiaryDetailModal({ diary, onClose, session, onLike, likedDiaryIds, setL
         </div>
 
         {/* 하단 액션 */}
-        <div className="flex items-center justify-between pt-4 border-t border-gray-200 mt-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pt-4 border-t border-gray-200 mt-4 space-y-2 sm:space-y-0">
           <div className="flex items-center space-x-4">
             <button
               onClick={handleLike}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${isLiked
+              className={`flex items-center space-x-2 px-3 md:px-4 py-2 rounded-lg transition-colors text-sm md:text-base ${isLiked
                   ? 'text-red-600 bg-red-50'
                   : 'text-gray-600 hover:text-red-600'
                 }`}
             >
-              <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
+              <Heart className={`w-4 h-4 md:w-5 md:h-5 ${isLiked ? 'fill-current' : ''}`} />
               <span>{diaryData.likes_count}</span>
             </button>
             <div className="flex items-center space-x-2 text-gray-500">
-              <Eye className="w-5 h-5" />
-              <span>{diaryData.views}</span>
+              <Eye className="w-4 h-4 md:w-5 md:h-5" />
+              <span className="text-sm md:text-base">{diaryData.views}</span>
             </div>
             <div className="flex items-center space-x-2 text-gray-500">
-              <MessageCircle className="w-5 h-5" />
-              <span>{diaryData.comments_count}</span>
+              <MessageCircle className="w-4 h-4 md:w-5 md:h-5" />
+              <span className="text-sm md:text-base">{diaryData.comments_count}</span>
             </div>
           </div>
           <button
-            className="text-gray-500 hover:text-gray-700"
+            className="text-gray-500 hover:text-gray-700 p-1"
             onClick={async () => {
               const url = `${window.location.origin}?diary=${diary.id}`;
               try {
@@ -1145,7 +1150,7 @@ function DiaryDetailModal({ diary, onClose, session, onLike, likedDiaryIds, setL
               }
             }}
           >
-            <Share2 className="w-5 h-5" />
+            <Share2 className="w-4 h-4 md:w-5 md:h-5" />
           </button>
         </div>
       </div>
